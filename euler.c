@@ -34,168 +34,102 @@ double gauss_quadrature_weight(int order, int index)
     switch (order) {
     case 1:
         switch (index) {
-        case 0:
-            return +2.00000000000000;
+        case 0: return +2.00000000000000;
         }
     case 2:
         switch (index) {
-        case 0:
-            return +1.00000000000000;
-        case 1:
-            return +1.00000000000000;
+        case 0: return +1.00000000000000;
+        case 1: return +1.00000000000000;
         }
     case 3:
         switch (index) {
-        case 0:
-            return +0.55555555555556;
-        case 1:
-            return +0.88888888888889;
-        case 2:
-            return +0.55555555555556;
+        case 0: return +0.55555555555556;
+        case 1: return +0.88888888888889;
+        case 2: return +0.55555555555556;
         }
     case 4:
         switch (index) {
-        case 0:
-            return +0.34785484513745;
-        case 1:
-            return +0.65214515486255;
-        case 2:
-            return +0.65214515486255;
-        case 3:
-            return +0.34785484513745;
+        case 0: return +0.34785484513745;
+        case 1: return +0.65214515486255;
+        case 2: return +0.65214515486255;
+        case 3: return +0.34785484513745;
         }
     case 5:
         switch (index) {
-        case 0:
-            return +0.23692688505619;
-        case 1:
-            return +0.47862867049937;
-        case 2:
-            return +0.56888888888889;
-        case 3:
-            return +0.47862867049937;
-        case 4:
-            return +0.23692688505619;
+        case 0: return +0.23692688505619;
+        case 1: return +0.47862867049937;
+        case 2: return +0.56888888888889;
+        case 3: return +0.47862867049937;
+        case 4: return +0.23692688505619;
         }
     case 6:
         switch (index) {
-        case 0:
-            return +0.17132449237917;
-        case 1:
-            return +0.36076157304814;
-        case 2:
-            return +0.46791393457269;
-        case 3:
-            return +0.46791393457269;
-        case 4:
-            return +0.36076157304814;
-        case 5:
-            return +0.17132449237917;
+        case 0: return +0.17132449237917;
+        case 1: return +0.36076157304814;
+        case 2: return +0.46791393457269;
+        case 3: return +0.46791393457269;
+        case 4: return +0.36076157304814;
+        case 5: return +0.17132449237917;
         }
     case 7:
         switch (index) {
-        case 0:
-            return +0.12948496616887;
-        case 1:
-            return +0.27970539148928;
-        case 2:
-            return +0.38183005050512;
-        case 3:
-            return +0.41795918367347;
-        case 4:
-            return +0.38183005050512;
-        case 5:
-            return +0.27970539148928;
-        case 6:
-            return +0.12948496616887;
+        case 0: return +0.12948496616887;
+        case 1: return +0.27970539148928;
+        case 2: return +0.38183005050512;
+        case 3: return +0.41795918367347;
+        case 4: return +0.38183005050512;
+        case 5: return +0.27970539148928;
+        case 6: return +0.12948496616887;
         }
     case 8:
         switch (index) {
-        case 0:
-            return +0.10122853629038;
-        case 1:
-            return +0.22238103445337;
-        case 2:
-            return +0.31370664587789;
-        case 3:
-            return +0.36268378337836;
-        case 4:
-            return +0.36268378337836;
-        case 5:
-            return +0.31370664587789;
-        case 6:
-            return +0.22238103445337;
-        case 7:
-            return +0.10122853629038;
+        case 0: return +0.10122853629038;
+        case 1: return +0.22238103445337;
+        case 2: return +0.31370664587789;
+        case 3: return +0.36268378337836;
+        case 4: return +0.36268378337836;
+        case 5: return +0.31370664587789;
+        case 6: return +0.22238103445337;
+        case 7: return +0.10122853629038;
         }
     case 9:
         switch (index) {
-        case 0:
-            return +0.08127438836157;
-        case 1:
-            return +0.18064816069486;
-        case 2:
-            return +0.26061069640294;
-        case 3:
-            return +0.31234707704000;
-        case 4:
-            return +0.33023935500126;
-        case 5:
-            return +0.31234707704000;
-        case 6:
-            return +0.26061069640294;
-        case 7:
-            return +0.18064816069486;
-        case 8:
-            return +0.08127438836157;
+        case 0: return +0.08127438836157;
+        case 1: return +0.18064816069486;
+        case 2: return +0.26061069640294;
+        case 3: return +0.31234707704000;
+        case 4: return +0.33023935500126;
+        case 5: return +0.31234707704000;
+        case 6: return +0.26061069640294;
+        case 7: return +0.18064816069486;
+        case 8: return +0.08127438836157;
         }
     case 10:
         switch (index) {
-        case 0:
-            return +0.06667134430869;
-        case 1:
-            return +0.14945134915058;
-        case 2:
-            return +0.21908636251598;
-        case 3:
-            return +0.26926671931000;
-        case 4:
-            return +0.29552422471475;
-        case 5:
-            return +0.29552422471475;
-        case 6:
-            return +0.26926671931000;
-        case 7:
-            return +0.21908636251598;
-        case 8:
-            return +0.14945134915058;
-        case 9:
-            return +0.06667134430869;
+        case 0: return +0.06667134430869;
+        case 1: return +0.14945134915058;
+        case 2: return +0.21908636251598;
+        case 3: return +0.26926671931000;
+        case 4: return +0.29552422471475;
+        case 5: return +0.29552422471475;
+        case 6: return +0.26926671931000;
+        case 7: return +0.21908636251598;
+        case 8: return +0.14945134915058;
+        case 9: return +0.06667134430869;
         }
     case 11:
         switch (index) {
-        case 0:
-            return +0.05566856711617;
-        case 1:
-            return +0.12558036946490;
-        case 2:
-            return +0.18629021092773;
-        case 3:
-            return +0.23319376459199;
-        case 4:
-            return +0.26280454451025;
-        case 5:
-            return +0.27292508677790;
-        case 6:
-            return +0.26280454451025;
-        case 7:
-            return +0.23319376459199;
-        case 8:
-            return +0.18629021092773;
-        case 9:
-            return +0.12558036946490;
-        case 10:
-            return +0.05566856711617;
+        case 0: return +0.05566856711617;
+        case 1: return +0.12558036946490;
+        case 2: return +0.18629021092773;
+        case 3: return +0.23319376459199;
+        case 4: return +0.26280454451025;
+        case 5: return +0.27292508677790;
+        case 6: return +0.26280454451025;
+        case 7: return +0.23319376459199;
+        case 8: return +0.18629021092773;
+        case 9: return +0.12558036946490;
+        case 10: return +0.05566856711617;
         }
     }
     return 0.0;
@@ -206,168 +140,102 @@ double gauss_quadrature_node(int order, int index)
     switch (order) {
     case 1:
         switch (index) {
-        case 0:
-            return +0.00000000000000;
+        case 0: return +0.00000000000000;
         }
     case 2:
         switch (index) {
-        case 0:
-            return -0.57735026918963;
-        case 1:
-            return +0.57735026918963;
+        case 0: return -0.57735026918963;
+        case 1: return +0.57735026918963;
         }
     case 3:
         switch (index) {
-        case 0:
-            return -0.77459666924148;
-        case 1:
-            return +0.00000000000000;
-        case 2:
-            return +0.77459666924148;
+        case 0: return -0.77459666924148;
+        case 1: return +0.00000000000000;
+        case 2: return +0.77459666924148;
         }
     case 4:
         switch (index) {
-        case 0:
-            return -0.86113631159405;
-        case 1:
-            return -0.33998104358486;
-        case 2:
-            return +0.33998104358486;
-        case 3:
-            return +0.86113631159405;
+        case 0: return -0.86113631159405;
+        case 1: return -0.33998104358486;
+        case 2: return +0.33998104358486;
+        case 3: return +0.86113631159405;
         }
     case 5:
         switch (index) {
-        case 0:
-            return -0.90617984593866;
-        case 1:
-            return -0.53846931010568;
-        case 2:
-            return +0.00000000000000;
-        case 3:
-            return +0.53846931010568;
-        case 4:
-            return +0.90617984593866;
+        case 0: return -0.90617984593866;
+        case 1: return -0.53846931010568;
+        case 2: return +0.00000000000000;
+        case 3: return +0.53846931010568;
+        case 4: return +0.90617984593866;
         }
     case 6:
         switch (index) {
-        case 0:
-            return -0.93246951420315;
-        case 1:
-            return -0.66120938646626;
-        case 2:
-            return -0.23861918608320;
-        case 3:
-            return +0.23861918608320;
-        case 4:
-            return +0.66120938646626;
-        case 5:
-            return +0.93246951420315;
+        case 0: return -0.93246951420315;
+        case 1: return -0.66120938646626;
+        case 2: return -0.23861918608320;
+        case 3: return +0.23861918608320;
+        case 4: return +0.66120938646626;
+        case 5: return +0.93246951420315;
         }
     case 7:
         switch (index) {
-        case 0:
-            return -0.94910791234276;
-        case 1:
-            return -0.74153118559939;
-        case 2:
-            return -0.40584515137740;
-        case 3:
-            return +0.00000000000000;
-        case 4:
-            return +0.40584515137740;
-        case 5:
-            return +0.74153118559939;
-        case 6:
-            return +0.94910791234276;
+        case 0: return -0.94910791234276;
+        case 1: return -0.74153118559939;
+        case 2: return -0.40584515137740;
+        case 3: return +0.00000000000000;
+        case 4: return +0.40584515137740;
+        case 5: return +0.74153118559939;
+        case 6: return +0.94910791234276;
         }
     case 8:
         switch (index) {
-        case 0:
-            return -0.96028985649754;
-        case 1:
-            return -0.79666647741363;
-        case 2:
-            return -0.52553240991633;
-        case 3:
-            return -0.18343464249565;
-        case 4:
-            return +0.18343464249565;
-        case 5:
-            return +0.52553240991633;
-        case 6:
-            return +0.79666647741363;
-        case 7:
-            return +0.96028985649754;
+        case 0: return -0.96028985649754;
+        case 1: return -0.79666647741363;
+        case 2: return -0.52553240991633;
+        case 3: return -0.18343464249565;
+        case 4: return +0.18343464249565;
+        case 5: return +0.52553240991633;
+        case 6: return +0.79666647741363;
+        case 7: return +0.96028985649754;
         }
     case 9:
         switch (index) {
-        case 0:
-            return -0.96816023950763;
-        case 1:
-            return -0.83603110732664;
-        case 2:
-            return -0.61337143270059;
-        case 3:
-            return -0.32425342340381;
-        case 4:
-            return +0.00000000000000;
-        case 5:
-            return +0.32425342340381;
-        case 6:
-            return +0.61337143270059;
-        case 7:
-            return +0.83603110732664;
-        case 8:
-            return +0.96816023950763;
+        case 0: return -0.96816023950763;
+        case 1: return -0.83603110732664;
+        case 2: return -0.61337143270059;
+        case 3: return -0.32425342340381;
+        case 4: return +0.00000000000000;
+        case 5: return +0.32425342340381;
+        case 6: return +0.61337143270059;
+        case 7: return +0.83603110732664;
+        case 8: return +0.96816023950763;
         }
     case 10:
         switch (index) {
-        case 0:
-            return -0.97390652851717;
-        case 1:
-            return -0.86506336668898;
-        case 2:
-            return -0.67940956829902;
-        case 3:
-            return -0.43339539412925;
-        case 4:
-            return -0.14887433898163;
-        case 5:
-            return +0.14887433898163;
-        case 6:
-            return +0.43339539412925;
-        case 7:
-            return +0.67940956829902;
-        case 8:
-            return +0.86506336668898;
-        case 9:
-            return +0.97390652851717;
+        case 0: return -0.97390652851717;
+        case 1: return -0.86506336668898;
+        case 2: return -0.67940956829902;
+        case 3: return -0.43339539412925;
+        case 4: return -0.14887433898163;
+        case 5: return +0.14887433898163;
+        case 6: return +0.43339539412925;
+        case 7: return +0.67940956829902;
+        case 8: return +0.86506336668898;
+        case 9: return +0.97390652851717;
         }
     case 11:
         switch (index) {
-        case 0:
-            return -0.97822865814606;
-        case 1:
-            return -0.88706259976810;
-        case 2:
-            return -0.73015200557405;
-        case 3:
-            return -0.51909612920681;
-        case 4:
-            return -0.26954315595234;
-        case 5:
-            return +0.00000000000000;
-        case 6:
-            return +0.26954315595234;
-        case 7:
-            return +0.51909612920681;
-        case 8:
-            return +0.73015200557405;
-        case 9:
-            return +0.88706259976810;
-        case 10:
-            return +0.97822865814606;
+        case 0: return -0.97822865814606;
+        case 1: return -0.88706259976810;
+        case 2: return -0.73015200557405;
+        case 3: return -0.51909612920681;
+        case 4: return -0.26954315595234;
+        case 5: return +0.00000000000000;
+        case 6: return +0.26954315595234;
+        case 7: return +0.51909612920681;
+        case 8: return +0.73015200557405;
+        case 9: return +0.88706259976810;
+        case 10: return +0.97822865814606;
         }
     }
     return 0.0;
@@ -396,6 +264,7 @@ void hydro_cons_to_prim(double* cons, double* prim)
     }
     if (pre <= 0.0) {
         printf("negative pressure\n");
+        exit(1);
     }
 
     prim[0] = d;
@@ -484,7 +353,7 @@ int prim_clear()
     return 0;
 }
 
-int prim_init_sod()
+int prim_init(void (*prim_func)(double x, double*))
 {
     if (grid == NULL) {
         printf("[error] grid is not initialized\n");
@@ -511,23 +380,40 @@ int prim_init_sod()
         for (int r = 0; r < order; ++r) {
             double xir = x[i * x_si + r * x_sr];
             double prim[NUM_FIELDS];
-
-            if (xir < 0.5) {
-                prim[0] = 1.0;
-                prim[1] = 0.0;
-                prim[2] = 1.0;
-            } else {
-                prim[0] = 0.1;
-                prim[1] = 0.0;
-                prim[2] = 0.125;
-            }
+            prim_func(xir, prim);
             for (int q = 0; q < num_fields; ++q) {
                 p[i * p_si + r * p_sr + q * p_sq] = prim[q];
             }
         }
     }
     return 0;
+
+    prim_func(1.0, NULL);
+    return 0;
 }
+
+void prim_func_sod(double x, double* prim)
+{
+    if (x < 0.5) {
+        prim[0] = 1.0;
+        prim[1] = 0.0;
+        prim[2] = 1.0;
+    } else {
+        prim[0] = 0.1;
+        prim[1] = 0.0;
+        prim[2] = 0.125;
+    }
+}
+
+void prim_func_dwave(double x, double* prim)
+{
+    prim[0] = 0.1 + 0.9 * sin(2 * M_PI * x);
+    prim[1] = 0.0;
+    prim[2] = 1.0;
+}
+
+int prim_init_sod() { return prim_init(prim_func_sod); }
+int prim_init_dwave() { return prim_init(prim_func_dwave); }
 
 int prim_from_cons()
 {
@@ -788,7 +674,7 @@ int set_order(int new_order)
         return 1;
     }
     order = new_order;
-    printf("[set] order=%d\n", order);
+    // printf("[set] order=%d\n", order);
     return 0;
 }
 
@@ -799,7 +685,7 @@ int set_num_zones(int new_num_zones)
         return 1;
     }
     num_zones = new_num_zones;
-    printf("[set] num_zones=%d\n", num_zones);
+    // printf("[set] num_zones=%d\n", num_zones);
     return 0;
 }
 
@@ -825,6 +711,9 @@ int load_command(const char* cmd)
     }
     if (strcmp(cmd, "prim:init_sod") == 0) {
         return prim_init_sod();
+    }
+    if (strcmp(cmd, "prim:init_dwave") == 0) {
+        return prim_init_dwave();
     }
     if (strcmp(cmd, "cons:print") == 0) {
         return cons_print();
