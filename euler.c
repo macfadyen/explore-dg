@@ -383,6 +383,26 @@ void hydro_prim_to_cons(double* prim, double* cons)
     cons[2] = rho * vel * vel * 0.5 + pre / (ADIABATIC_GAMMA - 1.0);
 }
 
+void hydro_cons_to_prim(double* cons, double* prim)
+{
+    double d = cons[0];
+    double s = cons[1];
+    double e = cons[2];
+    double pre = (e - 0.5 * s * s / d) * (ADIABATIC_GAMMA - 1.0);
+
+    if (d <= 0.0) {
+        printf("negative density\n");
+        exit(1);
+    }
+    if (pre <= 0.0) {
+        printf("negative pressure\n");
+    }
+
+    prim[0] = d;
+    prim[1] = s / d;
+    prim[2] = pre;
+}
+
 static int num_zones = 20;
 static int order = 3;
 static double domain_x0 = 0.0;
@@ -439,7 +459,7 @@ int grid_init()
 int prim_print()
 {
     int num_points = order;
-    int num_fields = 3;
+    int num_fields = NUM_FIELDS;
     int sr = 1;
     int sq = sr * num_points;
     int si = sq * num_fields;
@@ -447,7 +467,7 @@ int prim_print()
     double* p = solution_primitive;
 
     for (int i = 0; i < num_zones; ++i) {
-        for (int r = 0; r < order; ++r) {
+        for (int r = 0; r < num_points; ++r) {
             for (int q = 0; q < num_fields; ++q) {
                 printf("%+.8f ", p[i * si + r * sr + q * sq]);
             }
@@ -509,6 +529,66 @@ int prim_init_sod()
     return 0;
 }
 
+int prim_from_cons()
+{
+    if (solution_conserved == NULL) {
+        printf("[error] cons must be initialized\n");
+        return 1;
+    }
+
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+    int sr = 1;
+    int sq = sr * num_points;
+    int si = sq * num_fields;
+
+    if (solution_primitive == NULL) {
+        solution_primitive
+            = malloc(num_zones * num_fields * num_points * sizeof(double));
+    }
+
+    double* p = solution_primitive;
+    double* u = solution_conserved;
+
+    double prim[NUM_FIELDS];
+    double cons[NUM_FIELDS];
+
+    for (int i = 0; i < num_zones; ++i) {
+        for (int r = 0; r < order; ++r) {
+            for (int q = 0; q < num_fields; ++q) {
+                cons[q] = u[i * si + r * sr + q * sq];
+            }
+            hydro_cons_to_prim(cons, prim);
+
+            for (int q = 0; q < num_fields; ++q) {
+                p[i * si + r * sr + q * sq] = prim[q];
+            }
+        }
+    }
+    return 0;
+}
+
+int cons_print()
+{
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+    int sr = 1;
+    int sq = sr * num_points;
+    int si = sq * num_fields;
+
+    double* u = solution_conserved;
+
+    for (int i = 0; i < num_zones; ++i) {
+        for (int r = 0; r < num_points; ++r) {
+            for (int q = 0; q < num_fields; ++q) {
+                printf("%+.8f ", u[i * si + r * sr + q * sq]);
+            }
+            printf("\n");
+        }
+    }
+    return 0;
+}
+
 int cons_clear()
 {
     free(solution_conserved);
@@ -542,15 +622,87 @@ int cons_from_prim()
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < order; ++r) {
-
             for (int q = 0; q < num_fields; ++q) {
                 prim[q] = p[i * si + r * sr + q * sq];
             }
             hydro_prim_to_cons(prim, cons);
 
             for (int q = 0; q < num_fields; ++q) {
-                u[q] = p[i * si + r * sr + q * sq] = cons[q];
+                u[i * si + r * sr + q * sq] = cons[q];
             }
+        }
+    }
+    return 0;
+}
+
+int cons_from_wgts()
+{
+    if (solution_weights == NULL) {
+        printf("[error] weights must be initialized\n");
+        return 1;
+    }
+
+    int num_poly = order;
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+
+    int u_sr = 1;
+    int u_sq = u_sr * num_points;
+    int u_si = u_sq * num_fields;
+
+    int w_sl = 1;
+    int w_sq = w_sl * num_poly;
+    int w_si = w_sq * num_fields;
+
+    if (solution_conserved == NULL) {
+        solution_conserved
+            = malloc(num_zones * num_fields * num_points * sizeof(double));
+    }
+    for (int a = 0; a < num_zones * num_fields * num_points; ++a) {
+        solution_conserved[a] = 0.0;
+    }
+
+    double* u = solution_conserved;
+    double* w = solution_weights;
+
+    for (int i = 0; i < num_zones; ++i) {
+        for (int q = 0; q < num_fields; ++q) {
+            for (int l = 0; l < num_poly; ++l) {
+                for (int r = 0; r < num_points; ++r) {
+                    double xr = gauss_quadrature_node(order, r);
+                    double wr = gauss_quadrature_weight(order, r);
+                    double plr = legendre_polynomial(l, xr);
+                    double wiql = w[i * w_si + q * w_sq + l * w_sl];
+                    u[i * u_si + q * u_sq + r * u_sr] += wiql * plr;
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+int wgts_print()
+{
+    if (solution_weights == NULL) {
+        printf("[error] weights are not initialized\n");
+        return 1;
+    }
+    int num_poly = order;
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+
+    int sl = 1;
+    int sq = sl * num_poly;
+    int si = sq * num_fields;
+
+    double* w = solution_weights;
+
+    for (int i = 0; i < num_zones; ++i) {
+        for (int q = 0; q < num_fields; ++q) {
+            for (int l = 0; l < num_poly; ++l) {
+                printf("%+.8f ", w[i * si + q * sq + l * sl]);
+            }
+            printf("\n");
         }
     }
     return 0;
@@ -572,7 +724,7 @@ int wgts_from_cons()
 
     int num_poly = order;
     int num_points = order;
-    int num_fields = 3;
+    int num_fields = NUM_FIELDS;
 
     int u_sr = 1;
     int u_sq = u_sr * num_points;
@@ -601,7 +753,7 @@ int wgts_from_cons()
                     double xr = gauss_quadrature_node(order, r);
                     double wr = gauss_quadrature_weight(order, r);
                     double plr = legendre_polynomial(l, xr);
-                    w[i * w_si + q * w_sq + l * w_sl] += uiqr * plr * wr;
+                    w[i * w_si + q * w_sq + l * w_sl] += uiqr * plr * wr * 0.5;
                 }
             }
         }
@@ -674,11 +826,20 @@ int load_command(const char* cmd)
     if (strcmp(cmd, "prim:init_sod") == 0) {
         return prim_init_sod();
     }
+    if (strcmp(cmd, "cons:print") == 0) {
+        return cons_print();
+    }
     if (strcmp(cmd, "cons:clear") == 0) {
         return cons_clear();
     }
     if (strcmp(cmd, "cons:from_prim") == 0) {
         return cons_from_prim();
+    }
+    if (strcmp(cmd, "cons:from_wgts") == 0) {
+        return cons_from_wgts();
+    }
+    if (strcmp(cmd, "wgts:print") == 0) {
+        return wgts_print();
     }
     if (strcmp(cmd, "wgts:clear") == 0) {
         return wgts_clear();
