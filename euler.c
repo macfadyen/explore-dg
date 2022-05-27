@@ -915,18 +915,37 @@ int load_command(const char* cmd)
         return set_order(atoi(cmd + 6));
     if (strncmp(cmd, "num_zones=", 10) == 0)
         return set_num_zones(atoi(cmd + 10));
+    if (strcmp(cmd, "done") == 0)
+        return 1;
+    if (strcmp(cmd, "quit") == 0)
+        return 1;
 
     fprintf(stderr, "[error] unrecognized: %s\n", cmd);
     return 1;
 }
 
+#define MAX_COMMAND_LEN 1024
+
 int main(int argc, const char** argv)
 {
+    int error = 0;
+
     for (int n = 1; n < argc; ++n) {
-        if (load_command(argv[n])) {
-            break;
+        if ((error = load_command(argv[n]))) {
+            // break;
         }
     }
+
+    if (!error) {
+        char buffer[MAX_COMMAND_LEN];
+        while (fgets(buffer, MAX_COMMAND_LEN, stdin)) {
+            buffer[strcspn(buffer, "\n")] = 0;
+            if ((error = load_command(buffer))) {
+                // break;
+            }
+        }
+    }
+
     grid_clear();
     prim_clear();
     cons_clear();
