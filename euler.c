@@ -6,6 +6,10 @@
 #define MAX_DG_ORDER 11
 #define NUM_FIELDS 3
 #define ADIABATIC_GAMMA (5.0 / 3.0)
+#define min2(a, b) ((a) < (b) ? (a) : (b))
+#define max2(a, b) ((a) > (b) ? (a) : (b))
+#define min3(a, b, c) min2(a, min2(b, c))
+#define max3(a, b, c) max2(a, max2(b, c))
 
 long factorial(long n)
 {
@@ -306,6 +310,48 @@ void hydro_cons_to_prim(double* cons, double* prim)
     prim[2] = pre;
 }
 
+void hydro_flux(double* prim, double* flux)
+{
+    double rho = prim[0];
+    double vel = prim[1];
+    double pre = prim[2];
+    double e = rho * vel * vel * 0.5 + pre / (ADIABATIC_GAMMA - 1.0);
+    flux[0] = rho * vel;
+    flux[1] = rho * vel * vel + pre;
+    flux[2] = (e + pre) * vel;
+}
+
+double hydro_sound_speed(double* prim)
+{
+    double rho = prim[0];
+    double pre = prim[2];
+    return sqrt(ADIABATIC_GAMMA * pre / rho);
+}
+
+void hydro_riemann_hlle(
+    double* pl, double* pr, double* ul, double* ur, double* fhat)
+{
+    double fl[NUM_FIELDS];
+    double fr[NUM_FIELDS];
+    double vel_l = pl[1];
+    double vel_r = pr[1];
+    double cs_l = hydro_sound_speed(pl);
+    double cs_r = hydro_sound_speed(pr);
+    double lam_pl = vel_l + cs_l;
+    double lam_ml = vel_l - cs_l;
+    double lam_pr = vel_r + cs_r;
+    double lam_mr = vel_r - cs_r;
+    double ap = max3(0.0, lam_pl, lam_pr);
+    double am = min3(0.0, lam_ml, lam_mr);
+
+    hydro_flux(pr, fr);
+
+    for (int q = 0; q < NUM_FIELDS; ++q) {
+        fhat[q]
+            = (ap * fl[q] - am * fr[q] + ap * am * (ur[q] - ul[q])) / (ap - am);
+    }
+}
+
 static int num_zones = 20;
 static int order = 3;
 static double domain_x0 = 0.0;
@@ -317,7 +363,6 @@ static double* gauss_prim = NULL;
 static double* gauss_cons = NULL;
 static double* gauss_flux = NULL;
 static double* surface_cons = NULL;
-static double* riemann_flux = NULL;
 static double* godunov_flux = NULL;
 
 #define ARRAY_GRID 31
@@ -338,7 +383,6 @@ double** array_pointer(int array)
     case ARRAY_GAUSS_CONS: return &gauss_cons;
     case ARRAY_GAUSS_FLUX: return &gauss_flux;
     case ARRAY_SURFACE_CONS: return &surface_cons;
-    case ARRAY_RIEMANN_FLUX: return &riemann_flux;
     case ARRAY_GODUNOV_FLUX: return &godunov_flux;
     }
     assert(0);
@@ -353,7 +397,6 @@ const char* array_name(int array)
     case ARRAY_GAUSS_CONS: return "gauss_cons";
     case ARRAY_GAUSS_FLUX: return "gauss_flux";
     case ARRAY_SURFACE_CONS: return "surface_cons";
-    case ARRAY_RIEMANN_FLUX: return "riemann_flux";
     case ARRAY_GODUNOV_FLUX: return "godunov_flux";
     }
     assert(0);
@@ -367,8 +410,7 @@ void array_shape(int array, int* shape)
     // gauss_cons: ni x nr x nq
     // gauss_flux: ni x nr x nq
     // surface_cons: ni x 2  x nq
-    // riemann_flux: ni x 1  x nq  (i-axis endpoints invalid)
-    // godunov_flux: ni x nr x nq (r-axis endpoints invalid at i-axis endpoints)
+    // godunov_flux: ni x nr x nq
 
     int ni = num_zones;
     int nq = NUM_FIELDS;
@@ -406,11 +448,6 @@ void array_shape(int array, int* shape)
         shape[1] = 2;
         shape[2] = nq;
         return;
-    case ARRAY_RIEMANN_FLUX:
-        shape[0] = ni;
-        shape[1] = 1;
-        shape[2] = nq;
-        return;
     case ARRAY_GODUNOV_FLUX:
         shape[0] = ni;
         shape[1] = nr;
@@ -438,11 +475,17 @@ size_t array_len(int array)
 
 void array_alloc_if_needed(int array)
 {
-    size_t size = array_len(array) * sizeof(double);
+    size_t elem = array_len(array);
+    size_t size = elem * sizeof(double);
     double** ptr = array_pointer(array);
 
-    if (*ptr == NULL)
+    if (*ptr == NULL) {
         *ptr = malloc(size);
+
+        for (size_t a = 0; a < elem; ++a) {
+            (*ptr)[elem] = 0.0;
+        }
+    }
 }
 
 int array_print(int array)
@@ -666,6 +709,43 @@ int cons_from_wgts()
     return 0;
 }
 
+int cons_add_gflux()
+{
+    if (gauss_cons == NULL) {
+        fprintf(stderr, "[error] cons must be initialized\n");
+        return 1;
+    }
+    if (godunov_flux == NULL) {
+        fprintf(stderr, "[error] gflux must be initialized\n");
+        return 1;
+    }
+    if (grid == NULL) {
+        fprintf(stderr, "[error] grid must be initialized\n");
+        return 1;
+    }
+
+    int n[3];
+    int s[3];
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+    double dx = (domain_x1 - domain_x0) / num_zones;
+    double dt = dx * 0.1;
+
+    for (int r = 1; r < num_zones * num_points - 1; ++r) {
+        double* fimh = &godunov_flux[(r + 0) * num_fields];
+        double* fiph = &godunov_flux[(r + 1) * num_fields];
+
+        double ximh = 0.5 * (grid[r - 1] + grid[r + 0]);
+        double xiph = 0.5 * (grid[r + 0] + grid[r + 1]);
+
+        for (int q = 0; q < num_fields; ++q) {
+            gauss_cons[r * num_fields + q]
+                -= (fiph[q] - fimh[q]) * dt / (xiph - ximh);
+        }
+    }
+    return 0;
+}
+
 int wgts_print()
 {
     return array_print(ARRAY_WEIGHTS);
@@ -713,6 +793,39 @@ int wgts_from_cons()
                 }
             }
         }
+    }
+    return 0;
+}
+
+int gflux_print()
+{
+    return array_print(ARRAY_GODUNOV_FLUX);
+}
+
+int gflux_compute()
+{
+    if (gauss_prim == NULL) {
+        fprintf(stderr, "[error] prim must be initialized\n");
+        return 1;
+    }
+    if (gauss_cons == NULL) {
+        fprintf(stderr, "[error] cons must be initialized\n");
+        return 1;
+    }
+
+    int n[3];
+    int s[3];
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+    array_alloc_if_needed(ARRAY_GODUNOV_FLUX);
+
+    for (int r = 0; r < num_zones * num_points - 1; ++r) {
+        double* pl = &gauss_prim[(r + 0) * num_fields];
+        double* pr = &gauss_prim[(r + 1) * num_fields];
+        double* ul = &gauss_cons[(r + 0) * num_fields];
+        double* ur = &gauss_cons[(r + 1) * num_fields];
+        double* fhat = &godunov_flux[(r + 1) * num_fields];
+        hydro_riemann_hlle(pl, pr, ul, ur, fhat);
     }
     return 0;
 }
@@ -786,12 +899,18 @@ int load_command(const char* cmd)
         return cons_from_prim();
     if (strcmp(cmd, "cons:from_wgts") == 0)
         return cons_from_wgts();
+    if (strcmp(cmd, "cons:add_gflux") == 0)
+        return cons_add_gflux();
     if (strcmp(cmd, "wgts:print") == 0)
         return wgts_print();
     if (strcmp(cmd, "wgts:clear") == 0)
         return wgts_clear();
     if (strcmp(cmd, "wgts:from_cons") == 0)
         return wgts_from_cons();
+    if (strcmp(cmd, "gflux:print") == 0)
+        return gflux_print();
+    if (strcmp(cmd, "gflux:compute") == 0)
+        return gflux_compute();
     if (strncmp(cmd, "order=", 6) == 0)
         return set_order(atoi(cmd + 6));
     if (strncmp(cmd, "num_zones=", 10) == 0)
