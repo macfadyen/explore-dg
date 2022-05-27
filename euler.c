@@ -30,6 +30,17 @@ double legendre_polynomial(int n, double x)
     return p;
 }
 
+double legendre_polynomial_derivative(int n, double x)
+{
+    double p = 0.0;
+
+    for (int k = 0; k <= n; ++k) {
+        p += choose(n, k) * choose(n + k, k) * 0.5 * k
+            * pow(0.5 * (x - 1), k - 1);
+    }
+    return p;
+}
+
 double gauss_quadrature_node(int order, int index)
 {
     switch (order) {
@@ -544,7 +555,7 @@ void prim_func_sod(double x, double* prim)
 
 void prim_func_dwave(double x, double* prim)
 {
-    prim[0] = 1.0 + 1.0 * sin(2 * M_PI * x);
+    prim[0] = 1.0 + 0.5 * sin(2 * M_PI * x);
     prim[1] = 0.0;
     prim[2] = 1.0;
 }
@@ -708,7 +719,7 @@ int wgts_from_cons()
 
 int stencil_print()
 {
-    printf("stencil data at order %d (xsi, wgt, phi):\n", order);
+    printf("stencil data at order %d (xsi, wgt, phi, dph):\n", order);
 
     for (int n = 0; n < order; ++n) {
         printf("p%d\n", n);
@@ -716,7 +727,8 @@ int stencil_print()
             double x = gauss_quadrature_node(order, r);
             double w = gauss_quadrature_weight(order, r);
             double y = legendre_polynomial(n, x) * sqrt(2 * n + 1);
-            printf("%+.8f %+.8f %+.8f\n", x, w, y);
+            double z = legendre_polynomial_derivative(n, x) * sqrt(2 * n + 1);
+            printf("%+.8f %+.8f %+.8f %+.8f\n", x, w, y, z);
         }
     }
     return 0;
