@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#define MAX_COMMAND_LEN 1024
 #define MAX_DG_ORDER 11
 #define NUM_FIELDS 3
 #define ADIABATIC_GAMMA (5.0 / 3.0)
@@ -352,6 +354,7 @@ void hydro_riemann_hlle(
     }
 }
 
+static FILE* terminal = NULL;
 static int num_zones = 20;
 static int order = 3;
 static double domain_x0 = 0.0;
@@ -504,9 +507,10 @@ int array_print(int array)
     for (int i = 0; i < n[0]; ++i) {
         for (int r = 0; r < n[1]; ++r) {
             for (int q = 0; q < n[2]; ++q) {
-                printf("%+.8f ", data[i * s[0] + r * s[1] + q * s[2]]);
+                fprintf(
+                    terminal, "%+.8f ", data[i * s[0] + r * s[1] + q * s[2]]);
             }
-            printf("\n");
+            fprintf(terminal, "\n");
         }
     }
     return 0;
@@ -873,8 +877,62 @@ int set_num_zones(int new_num_zones)
     return 0;
 }
 
+int set_terminal(const char* terminal_str)
+{
+    FILE* new_terminal = NULL;
+
+    if (terminal != stdout) {
+        fclose(terminal);
+    }
+    if (strcmp(terminal_str, "stdout") == 0) {
+        terminal = stdout;
+    } else if ((new_terminal = fopen(terminal_str, "w")) == NULL) {
+        fprintf(stderr, "[error] unable to open file %s\n", terminal_str);
+        return 1;
+    }
+    terminal = new_terminal;
+    return 0;
+}
+
+int load_commands_from_file(const char* filename)
+{
+    int load_command(const char* cmd);
+
+    FILE* input = NULL;
+    char buffer[MAX_COMMAND_LEN];
+
+    if (strcmp(filename, "stdin") == 0) {
+        input = stdin;
+    } else if ((input = fopen(filename, "r")) == NULL) {
+        fprintf(stderr, "[error] unable to open file %s\n", filename);
+        return 1;
+    }
+
+    while (fgets(buffer, MAX_COMMAND_LEN, input)) {
+        buffer[strcspn(buffer, "\n")] = 0;
+        if (load_command(buffer) && input != stdin) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int load_commands_from_array(int argc, const char** argv)
+{
+    int load_command(const char* cmd);
+
+    for (int n = 1; n < argc; ++n) {
+        if (load_command(argv[n])) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 int load_command(const char* cmd)
 {
+    if (cmd[0] == '#')
+        return 0;
     if (strcmp(cmd, "stencil:print") == 0)
         return stencil_print();
     if (strcmp(cmd, "grid:print") == 0)
@@ -915,6 +973,10 @@ int load_command(const char* cmd)
         return set_order(atoi(cmd + 6));
     if (strncmp(cmd, "num_zones=", 10) == 0)
         return set_num_zones(atoi(cmd + 10));
+    if (strncmp(cmd, "terminal=", 9) == 0)
+        return set_terminal(cmd + 9);
+    if (strncmp(cmd, "load:", 5) == 0)
+        return load_commands_from_file(cmd + 5);
     if (strcmp(cmd, "done") == 0)
         return 1;
     if (strcmp(cmd, "quit") == 0)
@@ -924,28 +986,10 @@ int load_command(const char* cmd)
     return 1;
 }
 
-#define MAX_COMMAND_LEN 1024
-
 int main(int argc, const char** argv)
 {
-    int error = 0;
-
-    for (int n = 1; n < argc; ++n) {
-        if ((error = load_command(argv[n]))) {
-            // break;
-        }
-    }
-
-    if (!error) {
-        char buffer[MAX_COMMAND_LEN];
-        while (fgets(buffer, MAX_COMMAND_LEN, stdin)) {
-            buffer[strcspn(buffer, "\n")] = 0;
-            if ((error = load_command(buffer))) {
-                // break;
-            }
-        }
-    }
-
+    terminal = stdout;
+    load_commands_from_array(argc, argv);
     grid_clear();
     prim_clear();
     cons_clear();
