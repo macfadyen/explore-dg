@@ -703,14 +703,14 @@ int cons_from_wgts()
             for (int q = 0; q < un[2]; ++q) {
                 double xr = gauss_quadrature_node(order, r);
                 double wr = gauss_quadrature_weight(order, r);
-                double* uirq = &u[i * us[0] + r * us[1] + q * us[2]];
-                *uirq = 0.0;
+                double uirq = 0.0;
 
                 for (int l = 0; l < wn[2]; ++l) {
                     double plr = legendre_polynomial(l, xr);
                     double* wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
-                    *uirq += *wiql * plr;
+                    uirq += *wiql * plr;
                 }
+                u[i * us[0] + r * us[1] + q * us[2]] = uirq;
             }
         }
     }
@@ -788,16 +788,16 @@ int wgts_from_cons()
     for (int i = 0; i < un[0]; ++i) {
         for (int q = 0; q < un[2]; ++q) {
             for (int l = 0; l < wn[2]; ++l) {
-                double* wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
-                *wiql = 0.0;
+                double wiql = 0.0;
 
                 for (int r = 0; r < un[1]; ++r) {
                     double xr = gauss_quadrature_node(order, r);
                     double wr = gauss_quadrature_weight(order, r);
                     double plr = legendre_polynomial(l, xr);
                     double* uirq = &u[i * us[0] + r * us[1] + q * us[2]];
-                    *wiql += *uirq * plr * wr * 0.5;
+                    wiql += *uirq * plr * wr * 0.5;
                 }
+                w[i * ws[0] + q * ws[1] + l * ws[2]] = wiql;
             }
         }
     }
