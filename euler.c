@@ -13,6 +13,22 @@
 #define min3(a, b, c) min2(a, min2(b, c))
 #define max3(a, b, c) max2(a, max2(b, c))
 
+struct timespec timer_start()
+{
+    struct timespec start_time;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &start_time);
+    return start_time;
+}
+
+long timer_end(struct timespec start_time)
+{
+    struct timespec end_time;
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
+    long nanos = (end_time.tv_sec - start_time.tv_sec) * (long)1e9
+        + (end_time.tv_nsec - start_time.tv_nsec);
+    return nanos;
+}
+
 long factorial(long n)
 {
     if (n <= 1) {
@@ -361,8 +377,8 @@ static int order = 3;
 static double domain_x0 = 0.0;
 static double domain_x1 = 1.0;
 
-static double time = 0.0;
-static double timestep = 0.0;
+static double time_phys = 0.0;
+static double time_step = 0.0;
 static double* grid = NULL;
 static double* weights = NULL;
 static double* gauss_prim = NULL;
@@ -695,18 +711,31 @@ int cons_from_wgts()
     array_stride(ARRAY_WEIGHTS, ws);
     array_alloc_if_needed(ARRAY_GAUSS_CONS);
 
+    double phi[MAX_DG_ORDER * MAX_DG_ORDER];
+    double xsi[MAX_DG_ORDER];
+    double wgt[MAX_DG_ORDER];
+
+    for (int r = 0; r < un[1]; ++r) {
+        xsi[r] = gauss_quadrature_node(order, r);
+        wgt[r] = gauss_quadrature_weight(order, r);
+
+        for (int l = 0; l < wn[2]; ++l) {
+            phi[r * order + l] = legendre_polynomial(l, xsi[r]);
+        }
+    }
+
     double* u = gauss_cons;
     double* w = weights;
 
     for (int i = 0; i < un[0]; ++i) {
         for (int r = 0; r < un[1]; ++r) {
             for (int q = 0; q < un[2]; ++q) {
-                double xr = gauss_quadrature_node(order, r);
-                double wr = gauss_quadrature_weight(order, r);
+                double xr = xsi[r];
+                double wr = wgt[r];
                 double uirq = 0.0;
 
                 for (int l = 0; l < wn[2]; ++l) {
-                    double plr = legendre_polynomial(l, xr);
+                    double plr = phi[r * order + l];
                     double* wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
                     uirq += *wiql * plr;
                 }
@@ -736,7 +765,7 @@ int cons_add_gflux()
     int s[3];
     int num_points = order;
     int num_fields = NUM_FIELDS;
-    double dt = timestep;
+    double dt = time_step;
 
     for (int r = 1; r < num_zones * num_points - 1; ++r) {
         double* fimh = &godunov_flux[(r + 0) * num_fields];
@@ -782,6 +811,19 @@ int wgts_from_cons()
     array_stride(ARRAY_WEIGHTS, ws);
     array_alloc_if_needed(ARRAY_WEIGHTS);
 
+    double phi[MAX_DG_ORDER * MAX_DG_ORDER];
+    double xsi[MAX_DG_ORDER];
+    double wgt[MAX_DG_ORDER];
+
+    for (int r = 0; r < un[1]; ++r) {
+        xsi[r] = gauss_quadrature_node(order, r);
+        wgt[r] = gauss_quadrature_weight(order, r);
+
+        for (int l = 0; l < wn[2]; ++l) {
+            phi[r * order + l] = legendre_polynomial(l, xsi[r]);
+        }
+    }
+
     double* u = gauss_cons;
     double* w = weights;
 
@@ -791,9 +833,9 @@ int wgts_from_cons()
                 double wiql = 0.0;
 
                 for (int r = 0; r < un[1]; ++r) {
-                    double xr = gauss_quadrature_node(order, r);
-                    double wr = gauss_quadrature_weight(order, r);
-                    double plr = legendre_polynomial(l, xr);
+                    double xr = xsi[r];
+                    double wr = wgt[r];
+                    double plr = phi[r * order + l];
                     double* uirq = &u[i * us[0] + r * us[1] + q * us[2]];
                     wiql += *uirq * plr * wr * 0.5;
                 }
@@ -975,25 +1017,27 @@ int load_command(const char* cmd)
     if (strcmp(cmd, "gflux:compute") == 0)
         return gflux_compute();
 
-    if (strcmp(cmd, "toddler:simulate") == 0)
-    {
-        int iter = 0;
+    if (strcmp(cmd, "toddler:simulate") == 0) {
+        int iteration = 0;
         double x0 = domain_x0;
         double x1 = domain_x1;
         double dx = (x1 - x0) / num_zones;
-        timestep = dx / 1.0 * 0.05;
+        time_step = dx / 1.0 * 0.05;
 
         load_command("grid:init");
         load_command("prim:init_sod");
         load_command("cons:from_prim");
 
-        while (time < 0.1) {
+        while (time_phys < 0.1) {
+            struct timespec start = timer_start();
             load_command("gflux:compute");
             load_command("cons:add_gflux");
             load_command("prim:from_cons");
-            time += timestep;
-            iter += 1;
-            printf("[%04d] t = %.3f\n", iter, time);
+            double seconds = timer_end(start) * 1e-9;
+            time_phys += time_step;
+            iteration += 1;
+            printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
+                num_zones / seconds * 1e-6);
         }
         return 0;
     }
