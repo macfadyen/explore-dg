@@ -347,6 +347,7 @@ void hydro_riemann_hlle(
     double am = min3(0.0, lam_ml, lam_mr);
 
     hydro_flux(pr, fr);
+    hydro_flux(pl, fl);
 
     for (int q = 0; q < NUM_FIELDS; ++q) {
         fhat[q]
@@ -360,6 +361,8 @@ static int order = 3;
 static double domain_x0 = 0.0;
 static double domain_x1 = 1.0;
 
+static double time = 0.0;
+static double timestep = 0.0;
 static double* grid = NULL;
 static double* weights = NULL;
 static double* gauss_prim = NULL;
@@ -611,6 +614,7 @@ int prim_init_sod()
 {
     return prim_init(prim_func_sod);
 }
+
 int prim_init_dwave()
 {
     return prim_init(prim_func_dwave);
@@ -732,8 +736,7 @@ int cons_add_gflux()
     int s[3];
     int num_points = order;
     int num_fields = NUM_FIELDS;
-    double dx = (domain_x1 - domain_x0) / num_zones;
-    double dt = dx * 0.1;
+    double dt = timestep;
 
     for (int r = 1; r < num_zones * num_points - 1; ++r) {
         double* fimh = &godunov_flux[(r + 0) * num_fields];
@@ -931,7 +934,7 @@ int load_commands_from_array(int argc, const char** argv)
 
 int load_command(const char* cmd)
 {
-    if (cmd[0] == '#')
+    if (cmd[0] == '#' || strlen(cmd) == 0)
         return 0;
     if (strcmp(cmd, "stencil:print") == 0)
         return stencil_print();
@@ -949,8 +952,10 @@ int load_command(const char* cmd)
         return prim_init_sod();
     if (strcmp(cmd, "prim:init_dwave") == 0)
         return prim_init_dwave();
-    if (strcmp(cmd, "cons:print") == 0)
-        return cons_print();
+    if (strcmp(cmd, "prim:init_dwave") == 0)
+        return prim_init_dwave();
+    if (strcmp(cmd, "prim:from_cons") == 0)
+        return prim_from_cons();
     if (strcmp(cmd, "cons:clear") == 0)
         return cons_clear();
     if (strcmp(cmd, "cons:from_prim") == 0)
@@ -969,6 +974,30 @@ int load_command(const char* cmd)
         return gflux_print();
     if (strcmp(cmd, "gflux:compute") == 0)
         return gflux_compute();
+
+    if (strcmp(cmd, "toddler:simulate") == 0)
+    {
+        int iter = 0;
+        double x0 = domain_x0;
+        double x1 = domain_x1;
+        double dx = (x1 - x0) / num_zones;
+        timestep = dx / 1.0 * 0.05;
+
+        load_command("grid:init");
+        load_command("prim:init_sod");
+        load_command("cons:from_prim");
+
+        while (time < 0.1) {
+            load_command("gflux:compute");
+            load_command("cons:add_gflux");
+            load_command("prim:from_cons");
+            time += timestep;
+            iter += 1;
+            printf("[%04d] t = %.3f\n", iter, time);
+        }
+        return 0;
+    }
+
     if (strncmp(cmd, "order=", 6) == 0)
         return set_order(atoi(cmd + 6));
     if (strncmp(cmd, "num_zones=", 10) == 0)
