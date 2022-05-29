@@ -346,6 +346,15 @@ void hydro_flux(double* prim, double* flux)
     flux[2] = (e + pre) * vel;
 }
 
+void hydro_flux2(double* prim, double* cons, double* flux)
+{
+    double vel = prim[1];
+    double pre = prim[2];
+    flux[0] = cons[0] * vel;
+    flux[1] = cons[1] * vel + pre;
+    flux[2] = (cons[2] + pre) * vel;
+}
+
 double hydro_sound_speed(double* prim)
 {
     double rho = prim[0];
@@ -369,8 +378,8 @@ void hydro_riemann_hlle(
     double ap = max3(0.0, lam_pl, lam_pr);
     double am = min3(0.0, lam_ml, lam_mr);
 
-    hydro_flux(pr, fr);
-    hydro_flux(pl, fl);
+    hydro_flux2(pr, ur, fr);
+    hydro_flux2(pl, ul, fl);
 
     for (int q = 0; q < NUM_FIELDS; ++q) {
         fhat[q]
@@ -685,21 +694,20 @@ int cons_from_wgts()
     if (array_require_current(A_WGTS)) {
         return 1;
     }
-    int un[3];
-    int wn[3];
+    int num_poly = order;
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
 
-    array_shape(A_CONS, un);
-    array_shape(A_WGTS, wn);
     array_stride(A_CONS, us);
     array_stride(A_WGTS, ws);
     array_alloc_if_needed(A_CONS);
 
     double phi[MAX_DG_ORDER * MAX_DG_ORDER];
 
-    for (int r = 0; r < un[1]; ++r) {
-        for (int l = 0; l < wn[2]; ++l) {
+    for (int r = 0; r < num_points; ++r) {
+        for (int l = 0; l < num_poly; ++l) {
             phi[r * order + l]
                 = legendre_polynomial(l, gauss_quadrature_node(order, r));
         }
@@ -708,12 +716,12 @@ int cons_from_wgts()
     double* u = global_array[A_CONS];
     double* w = global_array[A_WGTS];
 
-    for (int i = 0; i < un[0]; ++i) {
-        for (int r = 0; r < un[1]; ++r) {
-            for (int q = 0; q < un[2]; ++q) {
+    for (int i = 0; i < num_zones; ++i) {
+        for (int r = 0; r < num_points; ++r) {
+            for (int q = 0; q < num_fields; ++q) {
                 double uirq = 0.0;
 
-                for (int l = 0; l < wn[2]; ++l) {
+                for (int l = 0; l < num_poly; ++l) {
                     double prl = phi[r * order + l];
                     double* wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
                     uirq += *wiql * prl;
@@ -785,6 +793,8 @@ int wgts_add_dg_vol()
 
     double* f = global_array[A_FLUX];
     double* w = global_array[A_WGTS];
+    double dx = (domain_x1 - domain_x0) / num_zones;
+    double dt = time_step;
 
     for (int i = 0; i < num_zones; ++i) {
         for (int q = 0; q < num_fields; ++q) {
@@ -796,7 +806,7 @@ int wgts_add_dg_vol()
                     double dprl = dph[r * order + l];
                     dwiql += firq * dprl * wgt[r];
                 }
-                w[i * ws[0] + q * ws[1] + l * ws[2]] += dwiql;
+                w[i * ws[0] + q * ws[1] + l * ws[2]] += dwiql * dt / dx;
             }
         }
     }
