@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define MAX_COMMAND_LEN 1024
 #define MAX_DG_ORDER 11
@@ -24,7 +25,7 @@ long timer_end(struct timespec start_time)
 {
     struct timespec end_time;
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
-    long nanos = (end_time.tv_sec - start_time.tv_sec) * (long)1e9
+    long nanos = (end_time.tv_sec - start_time.tv_sec) * 1000000000L
         + (end_time.tv_nsec - start_time.tv_nsec);
     return nanos;
 }
@@ -376,50 +377,26 @@ static int num_zones = 20;
 static int order = 3;
 static double domain_x0 = 0.0;
 static double domain_x1 = 1.0;
-
 static double time_phys = 0.0;
 static double time_step = 0.0;
-static double* grid = NULL;
-static double* weights = NULL;
-static double* gauss_prim = NULL;
-static double* gauss_cons = NULL;
-static double* gauss_flux = NULL;
-static double* surface_cons = NULL;
-static double* godunov_flux = NULL;
 
-#define ARRAY_GRID 31
-#define ARRAY_WEIGHTS 32
-#define ARRAY_GAUSS_PRIM 33
-#define ARRAY_GAUSS_CONS 34
-#define ARRAY_GAUSS_FLUX 35
-#define ARRAY_SURFACE_CONS 36
-#define ARRAY_RIEMANN_FLUX 37
-#define ARRAY_GODUNOV_FLUX 38
+#define A_GRID 0
+#define A_WGTS 1
+#define A_PRIM 2
+#define A_CONS 3
+#define A_FLUX 4
+#define ARRAY_COUNT 5
 
-double** array_pointer(int array)
-{
-    switch (array) {
-    case ARRAY_GRID: return &grid;
-    case ARRAY_WEIGHTS: return &weights;
-    case ARRAY_GAUSS_PRIM: return &gauss_prim;
-    case ARRAY_GAUSS_CONS: return &gauss_cons;
-    case ARRAY_GAUSS_FLUX: return &gauss_flux;
-    case ARRAY_SURFACE_CONS: return &surface_cons;
-    case ARRAY_GODUNOV_FLUX: return &godunov_flux;
-    }
-    assert(0);
-}
+static double* global_arrays[ARRAY_COUNT] = { NULL };
 
 const char* array_name(int array)
 {
     switch (array) {
-    case ARRAY_GRID: return "grid";
-    case ARRAY_WEIGHTS: return "weights";
-    case ARRAY_GAUSS_PRIM: return "gauss_prim";
-    case ARRAY_GAUSS_CONS: return "gauss_cons";
-    case ARRAY_GAUSS_FLUX: return "gauss_flux";
-    case ARRAY_SURFACE_CONS: return "surface_cons";
-    case ARRAY_GODUNOV_FLUX: return "godunov_flux";
+    case A_GRID: return "grid";
+    case A_WGTS: return "wgts";
+    case A_PRIM: return "prim";
+    case A_CONS: return "cons";
+    case A_FLUX: return "flux";
     }
     assert(0);
 }
@@ -440,41 +417,41 @@ void array_shape(int array, int* shape)
     int nl = order;
 
     switch (array) {
-    case ARRAY_GRID:
+    case A_GRID:
         shape[0] = ni;
         shape[1] = nr;
         shape[2] = 1;
         return;
-    case ARRAY_WEIGHTS:
+    case A_WGTS:
         shape[0] = ni;
         shape[1] = nq;
         shape[2] = nl;
         return;
-    case ARRAY_GAUSS_PRIM:
+    case A_PRIM:
         shape[0] = ni;
         shape[1] = nr;
         shape[2] = nq;
         return;
-    case ARRAY_GAUSS_CONS:
+    case A_CONS:
         shape[0] = ni;
         shape[1] = nr;
         shape[2] = nq;
         return;
-    case ARRAY_GAUSS_FLUX:
+    case A_FLUX:
         shape[0] = ni;
         shape[1] = nr;
         shape[2] = nq;
         return;
-    case ARRAY_SURFACE_CONS:
-        shape[0] = ni;
-        shape[1] = 2;
-        shape[2] = nq;
-        return;
-    case ARRAY_GODUNOV_FLUX:
-        shape[0] = ni;
-        shape[1] = nr;
-        shape[2] = nq;
-        return;
+        // case A_CONS:
+        //     shape[0] = ni;
+        //     shape[1] = 2;
+        //     shape[2] = nq;
+        //     return;
+        // case A_FLUX:
+        //     shape[0] = ni;
+        //     shape[1] = nr;
+        //     shape[2] = nq;
+        //     return;
     }
     assert(0);
 }
@@ -499,7 +476,7 @@ void array_alloc_if_needed(int array)
 {
     size_t elem = array_len(array);
     size_t size = elem * sizeof(double);
-    double** ptr = array_pointer(array);
+    double** ptr = &global_arrays[array];
 
     if (*ptr == NULL) {
         *ptr = malloc(size);
@@ -510,6 +487,13 @@ void array_alloc_if_needed(int array)
     }
 }
 
+int array_clear(int array)
+{
+    free(global_arrays[array]);
+    global_arrays[array] = NULL;
+    return 0;
+}
+
 int array_print(int array)
 {
     int n[3];
@@ -517,7 +501,7 @@ int array_print(int array)
 
     array_shape(array, n);
     array_stride(array, s);
-    double* data = *array_pointer(array);
+    double* data = global_arrays[array];
 
     if (data == NULL) {
         fprintf(stderr, "[error] %s is not initialized\n", array_name(array));
@@ -535,22 +519,10 @@ int array_print(int array)
     return 0;
 }
 
-int grid_print()
-{
-    return array_print(ARRAY_GRID);
-}
-
-int grid_clear()
-{
-    free(grid);
-    grid = NULL;
-    return 0;
-}
-
 int grid_init()
 {
-    array_alloc_if_needed(ARRAY_GRID);
-
+    array_alloc_if_needed(A_GRID);
+    double* grid = global_arrays[A_GRID];
     double x0 = domain_x0;
     double x1 = domain_x1;
     double dx = (x1 - x0) / num_zones;
@@ -564,21 +536,9 @@ int grid_init()
     return 0;
 }
 
-int prim_print()
-{
-    return array_print(ARRAY_GAUSS_PRIM);
-}
-
-int prim_clear()
-{
-    free(gauss_prim);
-    gauss_prim = NULL;
-    return 0;
-}
-
 int prim_init(void (*prim_func)(double x, double*))
 {
-    if (grid == NULL) {
+    if (global_arrays[A_GRID] == NULL) {
         fprintf(stderr, "[error] grid is not initialized\n");
         return 1;
     }
@@ -587,14 +547,14 @@ int prim_init(void (*prim_func)(double x, double*))
     int xs[3];
     int ps[3];
 
-    array_shape(ARRAY_GRID, xn);
-    array_shape(ARRAY_GAUSS_PRIM, pn);
-    array_stride(ARRAY_GRID, xs);
-    array_stride(ARRAY_GAUSS_PRIM, ps);
-    array_alloc_if_needed(ARRAY_GAUSS_PRIM);
+    array_shape(A_GRID, xn);
+    array_shape(A_PRIM, pn);
+    array_stride(A_GRID, xs);
+    array_stride(A_PRIM, ps);
+    array_alloc_if_needed(A_PRIM);
 
-    double* x = grid;
-    double* p = gauss_prim;
+    double* x = global_arrays[A_GRID];
+    double* p = global_arrays[A_PRIM];
 
     for (int i = 0; i < pn[0]; ++i) {
         for (int r = 0; r < pn[1]; ++r) {
@@ -638,56 +598,50 @@ int prim_init_dwave()
 
 int prim_from_cons()
 {
-    if (gauss_cons == NULL) {
+    if (global_arrays[A_CONS] == NULL) {
         fprintf(stderr, "[error] cons must be initialized\n");
         return 1;
     }
     int n[3];
     int s[3];
 
-    array_shape(ARRAY_GAUSS_PRIM, n);
-    array_stride(ARRAY_GAUSS_PRIM, s);
-    array_alloc_if_needed(ARRAY_GAUSS_PRIM);
+    array_shape(A_PRIM, n);
+    array_stride(A_PRIM, s);
+    array_alloc_if_needed(A_PRIM);
+
+    double* u = global_arrays[A_CONS];
+    double* p = global_arrays[A_PRIM];
 
     for (int i = 0; i < n[0]; ++i) {
         for (int r = 0; r < n[1]; ++r) {
-            double* uirq = &gauss_cons[i * s[0] + r * s[1]];
-            double* pirq = &gauss_prim[i * s[0] + r * s[1]];
+            double* uirq = &u[i * s[0] + r * s[1]];
+            double* pirq = &p[i * s[0] + r * s[1]];
             hydro_cons_to_prim(uirq, pirq);
         }
     }
     return 0;
 }
 
-int cons_print()
-{
-    return array_print(ARRAY_GAUSS_CONS);
-}
-
-int cons_clear()
-{
-    free(gauss_cons);
-    gauss_cons = NULL;
-    return 0;
-}
-
 int cons_from_prim()
 {
-    if (gauss_prim == NULL) {
+    if (global_arrays[A_PRIM] == NULL) {
         fprintf(stderr, "[error] prim must be initialized\n");
         return 1;
     }
     int n[3];
     int s[3];
 
-    array_shape(ARRAY_GAUSS_CONS, n);
-    array_stride(ARRAY_GAUSS_CONS, s);
-    array_alloc_if_needed(ARRAY_GAUSS_CONS);
+    array_shape(A_CONS, n);
+    array_stride(A_CONS, s);
+    array_alloc_if_needed(A_CONS);
+
+    double* p = global_arrays[A_PRIM];
+    double* u = global_arrays[A_CONS];
 
     for (int i = 0; i < n[0]; ++i) {
         for (int r = 0; r < n[1]; ++r) {
-            double* pirq = &gauss_prim[i * s[0] + r * s[1]];
-            double* uirq = &gauss_cons[i * s[0] + r * s[1]];
+            double* pirq = &p[i * s[0] + r * s[1]];
+            double* uirq = &u[i * s[0] + r * s[1]];
             hydro_prim_to_cons(pirq, uirq);
         }
     }
@@ -696,7 +650,7 @@ int cons_from_prim()
 
 int cons_from_wgts()
 {
-    if (weights == NULL) {
+    if (global_arrays[A_WGTS] == NULL) {
         fprintf(stderr, "[error] weights must be initialized\n");
         return 1;
     }
@@ -705,33 +659,30 @@ int cons_from_wgts()
     int us[3];
     int ws[3];
 
-    array_shape(ARRAY_GAUSS_CONS, un);
-    array_shape(ARRAY_WEIGHTS, wn);
-    array_stride(ARRAY_GAUSS_CONS, us);
-    array_stride(ARRAY_WEIGHTS, ws);
-    array_alloc_if_needed(ARRAY_GAUSS_CONS);
+    array_shape(A_CONS, un);
+    array_shape(A_WGTS, wn);
+    array_stride(A_CONS, us);
+    array_stride(A_WGTS, ws);
+    array_alloc_if_needed(A_CONS);
 
     double phi[MAX_DG_ORDER * MAX_DG_ORDER];
-    double xsi[MAX_DG_ORDER];
-    double wgt[MAX_DG_ORDER];
 
     for (int r = 0; r < un[1]; ++r) {
-        xsi[r] = gauss_quadrature_node(order, r);
-        wgt[r] = gauss_quadrature_weight(order, r);
-
         for (int l = 0; l < wn[2]; ++l) {
-            phi[r * order + l] = legendre_polynomial(l, xsi[r]);
+            phi[r * order + l]
+                = legendre_polynomial(l, gauss_quadrature_node(order, r));
         }
     }
 
-    double* u = gauss_cons;
-    double* w = weights;
+    // double* u = gauss_cons;
+    // double* w = weights;
+
+    double* u = global_arrays[A_CONS];
+    double* w = global_arrays[A_WGTS];
 
     for (int i = 0; i < un[0]; ++i) {
         for (int r = 0; r < un[1]; ++r) {
             for (int q = 0; q < un[2]; ++q) {
-                double xr = xsi[r];
-                double wr = wgt[r];
                 double uirq = 0.0;
 
                 for (int l = 0; l < wn[2]; ++l) {
@@ -748,6 +699,10 @@ int cons_from_wgts()
 
 int cons_add_gflux()
 {
+    double* godunov_flux = global_arrays[A_FLUX];
+    double* grid = global_arrays[A_GRID];
+    double* gauss_cons = global_arrays[A_CONS];
+
     if (gauss_cons == NULL) {
         fprintf(stderr, "[error] cons must be initialized\n");
         return 1;
@@ -761,8 +716,6 @@ int cons_add_gflux()
         return 1;
     }
 
-    int n[3];
-    int s[3];
     int num_points = order;
     int num_fields = NUM_FIELDS;
     double dt = time_step;
@@ -784,19 +737,12 @@ int cons_add_gflux()
 
 int wgts_print()
 {
-    return array_print(ARRAY_WEIGHTS);
-}
-
-int wgts_clear()
-{
-    free(weights);
-    weights = NULL;
-    return 0;
+    return array_print(A_WGTS);
 }
 
 int wgts_from_cons()
 {
-    if (gauss_cons == NULL) {
+    if (global_arrays[A_CONS] == NULL) {
         fprintf(stderr, "[error] cons must be initialized\n");
         return 1;
     }
@@ -805,11 +751,11 @@ int wgts_from_cons()
     int us[3];
     int ws[3];
 
-    array_shape(ARRAY_GAUSS_CONS, un);
-    array_shape(ARRAY_WEIGHTS, wn);
-    array_stride(ARRAY_GAUSS_CONS, us);
-    array_stride(ARRAY_WEIGHTS, ws);
-    array_alloc_if_needed(ARRAY_WEIGHTS);
+    array_shape(A_CONS, un);
+    array_shape(A_WGTS, wn);
+    array_stride(A_CONS, us);
+    array_stride(A_WGTS, ws);
+    array_alloc_if_needed(A_WGTS);
 
     double phi[MAX_DG_ORDER * MAX_DG_ORDER];
     double xsi[MAX_DG_ORDER];
@@ -824,8 +770,8 @@ int wgts_from_cons()
         }
     }
 
-    double* u = gauss_cons;
-    double* w = weights;
+    double* u = global_arrays[A_CONS];
+    double* w = global_arrays[A_WGTS];
 
     for (int i = 0; i < un[0]; ++i) {
         for (int q = 0; q < un[2]; ++q) {
@@ -833,7 +779,6 @@ int wgts_from_cons()
                 double wiql = 0.0;
 
                 for (int r = 0; r < un[1]; ++r) {
-                    double xr = xsi[r];
                     double wr = wgt[r];
                     double plr = phi[r * order + l];
                     double* uirq = &u[i * us[0] + r * us[1] + q * us[2]];
@@ -848,32 +793,34 @@ int wgts_from_cons()
 
 int gflux_print()
 {
-    return array_print(ARRAY_GODUNOV_FLUX);
+    return array_print(A_FLUX);
 }
 
 int gflux_compute()
 {
-    if (gauss_prim == NULL) {
+    if (global_arrays[A_PRIM] == NULL) {
         fprintf(stderr, "[error] prim must be initialized\n");
         return 1;
     }
-    if (gauss_cons == NULL) {
+    if (global_arrays[A_CONS] == NULL) {
         fprintf(stderr, "[error] cons must be initialized\n");
         return 1;
     }
 
-    int n[3];
-    int s[3];
     int num_points = order;
     int num_fields = NUM_FIELDS;
-    array_alloc_if_needed(ARRAY_GODUNOV_FLUX);
+    array_alloc_if_needed(A_FLUX);
+
+    double* u = global_arrays[A_CONS];
+    double* p = global_arrays[A_PRIM];
+    double* f = global_arrays[A_FLUX];
 
     for (int r = 0; r < num_zones * num_points - 1; ++r) {
-        double* pl = &gauss_prim[(r + 0) * num_fields];
-        double* pr = &gauss_prim[(r + 1) * num_fields];
-        double* ul = &gauss_cons[(r + 0) * num_fields];
-        double* ur = &gauss_cons[(r + 1) * num_fields];
-        double* fhat = &godunov_flux[(r + 1) * num_fields];
+        double* pl = &p[(r + 0) * num_fields];
+        double* pr = &p[(r + 1) * num_fields];
+        double* ul = &u[(r + 0) * num_fields];
+        double* ur = &u[(r + 1) * num_fields];
+        double* fhat = &f[(r + 1) * num_fields];
         hydro_riemann_hlle(pl, pr, ul, ur, fhat);
     }
     return 0;
@@ -929,7 +876,7 @@ int set_order(int new_order)
         fprintf(stderr, "[error] maximum order is %d\n", MAX_DG_ORDER);
         return 1;
     }
-    if (grid != NULL) {
+    if (global_arrays[A_GRID] != NULL) {
         fprintf(stderr, "[error] cannot set order when grid is allocated\n");
         return 1;
     }
@@ -939,12 +886,12 @@ int set_order(int new_order)
 
 int set_num_zones(int new_num_zones)
 {
-    if (grid || gauss_prim || gauss_cons || weights) {
-        fprintf(stderr,
-            "[error] cannot set num_zones when grid|prim|cons|wgts are "
-            "allocated\n");
-        return 1;
-    }
+    // if (grid || gauss_prim || gauss_cons || weights) {
+    //     fprintf(stderr,
+    //         "[error] cannot set num_zones when grid|prim|cons|wgts are "
+    //         "allocated\n");
+    //     return 1;
+    // }
     num_zones = new_num_zones;
     return 0;
 }
@@ -1011,15 +958,15 @@ int load_command(const char* cmd)
     if (strcmp(cmd, "stencil:print") == 0)
         return stencil_print();
     if (strcmp(cmd, "grid:print") == 0)
-        return grid_print();
+        return array_print(A_GRID);
     if (strcmp(cmd, "grid:clear") == 0)
-        return grid_clear();
+        return array_clear(A_GRID);
     if (strcmp(cmd, "grid:init") == 0)
         return grid_init();
     if (strcmp(cmd, "prim:print") == 0)
-        return prim_print();
+        return array_print(A_PRIM);
     if (strcmp(cmd, "prim:clear") == 0)
-        return prim_clear();
+        return array_clear(A_PRIM);
     if (strcmp(cmd, "prim:init_sod") == 0)
         return prim_init_sod();
     if (strcmp(cmd, "prim:init_dwave") == 0)
@@ -1029,7 +976,7 @@ int load_command(const char* cmd)
     if (strcmp(cmd, "prim:from_cons") == 0)
         return prim_from_cons();
     if (strcmp(cmd, "cons:clear") == 0)
-        return cons_clear();
+        return array_clear(A_CONS);
     if (strcmp(cmd, "cons:from_prim") == 0)
         return cons_from_prim();
     if (strcmp(cmd, "cons:from_wgts") == 0)
@@ -1039,7 +986,7 @@ int load_command(const char* cmd)
     if (strcmp(cmd, "wgts:print") == 0)
         return wgts_print();
     if (strcmp(cmd, "wgts:clear") == 0)
-        return wgts_clear();
+        return array_clear(A_WGTS);
     if (strcmp(cmd, "wgts:from_cons") == 0)
         return wgts_from_cons();
     if (strcmp(cmd, "gflux:print") == 0)
@@ -1069,9 +1016,9 @@ int main(int argc, const char** argv)
 {
     terminal = stdout;
     load_commands_from_array(argc, argv);
-    grid_clear();
-    prim_clear();
-    cons_clear();
-    wgts_clear();
+
+    for (int i = 0; i < ARRAY_COUNT; ++i) {
+        array_clear(i);
+    }
     return 0;
 }
