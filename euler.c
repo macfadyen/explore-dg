@@ -896,6 +896,33 @@ int stencil_print()
     return 0;
 }
 
+int run()
+{
+    int iteration = 0;
+    double x0 = domain_x0;
+    double x1 = domain_x1;
+    double dx = (x1 - x0) / num_zones;
+    time_step = dx / 1.0 * 0.02;
+
+    grid_init();
+    prim_init_sod();
+    cons_from_prim();
+
+    while (time_phys < 0.1) {
+        struct timespec start = timer_start();
+        gflux_compute();
+        cons_add_gflux();
+        prim_from_cons();
+        // wgts_from_cons();
+        double seconds = timer_end(start) * 1e-9;
+        time_phys += time_step;
+        iteration += 1;
+        printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
+            num_zones / seconds * 1e-6);
+    }
+    return 0;
+}
+
 int set_order(int new_order)
 {
     if (new_order > MAX_DG_ORDER) {
@@ -955,6 +982,9 @@ int load_commands_from_file(const char* filename)
 
     while (fgets(buffer, MAX_COMMAND_LEN, input)) {
         buffer[strcspn(buffer, "\n")] = 0;
+        if (strcmp("done", buffer) == 0) {
+            return 0;
+        }
         if (load_command(buffer) && input != stdin) {
             return 1;
         }
@@ -1016,32 +1046,8 @@ int load_command(const char* cmd)
         return gflux_print();
     if (strcmp(cmd, "gflux:compute") == 0)
         return gflux_compute();
-
-    if (strcmp(cmd, "toddler:simulate") == 0) {
-        int iteration = 0;
-        double x0 = domain_x0;
-        double x1 = domain_x1;
-        double dx = (x1 - x0) / num_zones;
-        time_step = dx / 1.0 * 0.05;
-
-        load_command("grid:init");
-        load_command("prim:init_sod");
-        load_command("cons:from_prim");
-
-        while (time_phys < 0.1) {
-            struct timespec start = timer_start();
-            load_command("gflux:compute");
-            load_command("cons:add_gflux");
-            load_command("prim:from_cons");
-            double seconds = timer_end(start) * 1e-9;
-            time_phys += time_step;
-            iteration += 1;
-            printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
-                num_zones / seconds * 1e-6);
-        }
-        return 0;
-    }
-
+    if (strcmp(cmd, "run") == 0)
+        return run();
     if (strncmp(cmd, "order=", 6) == 0)
         return set_order(atoi(cmd + 6));
     if (strncmp(cmd, "num_zones=", 10) == 0)
