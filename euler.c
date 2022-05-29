@@ -514,9 +514,10 @@ int array_set_current(int array)
     return 0;
 }
 
-void array_invalidate(int array)
+int array_invalidate(int array)
 {
     global_array_status[array] = INVALID;
+    return 0;
 }
 
 int array_print(int array)
@@ -839,6 +840,13 @@ int stencil_print()
     return 0;
 }
 
+#define TRY(n)                                                                 \
+    do {                                                                       \
+        int res = n;                                                           \
+        if (res)                                                               \
+            return res;                                                        \
+    } while (0)
+
 int run()
 {
     int iteration = 0;
@@ -847,17 +855,17 @@ int run()
     double dx = (x1 - x0) / num_zones;
     time_step = dx / 1.0 * 0.02;
 
-    grid_init();
-    prim_init_sod();
-    cons_from_prim();
+    TRY(grid_init());
+    TRY(prim_init_sod());
+    TRY(cons_from_prim());
 
     while (time_phys < 0.1) {
         struct timespec start = timer_start();
-        gflux_compute();
-        cons_add_gflux();
-        array_invalidate(A_PRIM);
-        prim_from_cons();
-        // wgts_from_cons();
+        TRY(gflux_compute());
+        TRY(cons_add_gflux());
+        TRY(array_invalidate(A_PRIM));
+        TRY(prim_from_cons());
+        // TRY(wgts_from_cons());
         double seconds = timer_end(start) * 1e-9;
         time_phys += time_step;
         iteration += 1;
