@@ -402,7 +402,8 @@ static double time_step = 0.0;
 #define A_CONS_SRF 4
 #define A_FLUX 5
 #define A_FLUX_GOD 6
-#define ARRAY_COUNT 7
+#define A_TRZN 7
+#define ARRAY_COUNT 8
 
 #define CURRENT 0
 #define INVALID 1
@@ -420,6 +421,7 @@ const char* array_name(int array)
     case A_CONS_SRF: return "cons_srf";
     case A_FLUX: return "flux";
     case A_FLUX_GOD: return "flux_god";
+    case A_TRZN: return "trzn";
     }
     assert(0);
 }
@@ -467,6 +469,11 @@ void array_shape(int array, int* shape)
         shape[1] = nr;
         shape[2] = nq;
         return;
+    case A_TRZN:
+        shape[0] = ni;
+        shape[1] = 1;
+        shape[2] = 1;
+        return;
     }
     assert(0);
 }
@@ -478,6 +485,12 @@ void array_stride(int array, int* stride)
     stride[2] = 1;
     stride[1] = stride[2] * shape[2];
     stride[0] = stride[1] * shape[1];
+}
+
+double* array_ptr_stride(int array, int* stride)
+{
+    array_stride(array, stride);
+    return global_array[array];
 }
 
 size_t array_len(int array)
@@ -577,23 +590,18 @@ int prim_init(void (*prim_func)(double x, double*))
     if (array_require_current(A_GRID)) {
         return 1;
     }
+    array_alloc_if_needed(A_PRIM);
 
+    int num_points = order;
     int xn[3];
     int pn[3];
     int xs[3];
     int ps[3];
+    double* x = array_ptr_stride(A_GRID, xs);
+    double* p = array_ptr_stride(A_PRIM, ps);
 
-    array_shape(A_GRID, xn);
-    array_shape(A_PRIM, pn);
-    array_stride(A_GRID, xs);
-    array_stride(A_PRIM, ps);
-    array_alloc_if_needed(A_PRIM);
-
-    double* x = global_array[A_GRID];
-    double* p = global_array[A_PRIM];
-
-    for (int i = 0; i < pn[0]; ++i) {
-        for (int r = 0; r < pn[1]; ++r) {
+    for (int i = 0; i < num_zones; ++i) {
+        for (int r = 0; r < num_points; ++r) {
             double* xir = &x[i * xs[0] + r * xs[1]];
             double* pir = &p[i * ps[0] + r * ps[1]];
             prim_func(*xir, pir);
@@ -637,20 +645,18 @@ int prim_from_cons()
     if (array_require_current(A_CONS)) {
         return 1;
     }
-    int n[3];
-    int s[3];
-
-    array_shape(A_PRIM, n);
-    array_stride(A_PRIM, s);
     array_alloc_if_needed(A_PRIM);
 
-    double* u = global_array[A_CONS];
-    double* p = global_array[A_PRIM];
+    int num_points = order;
+    int us[3];
+    int ps[3];
+    double* u = array_ptr_stride(A_CONS, us);
+    double* p = array_ptr_stride(A_PRIM, ps);
 
-    for (int i = 0; i < n[0]; ++i) {
-        for (int r = 0; r < n[1]; ++r) {
-            double* uirq = &u[i * s[0] + r * s[1]];
-            double* pirq = &p[i * s[0] + r * s[1]];
+    for (int i = 0; i < num_zones; ++i) {
+        for (int r = 0; r < num_points; ++r) {
+            double* uirq = &u[i * us[0] + r * us[1]];
+            double* pirq = &p[i * ps[0] + r * ps[1]];
             hydro_cons_to_prim(uirq, pirq);
         }
     }
@@ -662,20 +668,18 @@ int cons_from_prim()
     if (array_require_current(A_PRIM)) {
         return 1;
     }
-    int n[3];
-    int s[3];
-
-    array_shape(A_CONS, n);
-    array_stride(A_CONS, s);
     array_alloc_if_needed(A_CONS);
 
-    double* p = global_array[A_PRIM];
-    double* u = global_array[A_CONS];
+    int num_points = order;
+    int ps[3];
+    int us[3];
+    double* p = array_ptr_stride(A_PRIM, ps);
+    double* u = array_ptr_stride(A_CONS, us);
 
-    for (int i = 0; i < n[0]; ++i) {
-        for (int r = 0; r < n[1]; ++r) {
-            double* pirq = &p[i * s[0] + r * s[1]];
-            double* uirq = &u[i * s[0] + r * s[1]];
+    for (int i = 0; i < num_zones; ++i) {
+        for (int r = 0; r < num_points; ++r) {
+            double* pirq = &p[i * ps[0] + r * ps[1]];
+            double* uirq = &u[i * us[0] + r * us[1]];
             hydro_prim_to_cons(pirq, uirq);
         }
     }
@@ -687,15 +691,15 @@ int cons_from_wgts()
     if (array_require_current(A_WGTS)) {
         return 1;
     }
+    array_alloc_if_needed(A_CONS);
+
     int num_poly = order;
     int num_points = order;
     int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
-
-    array_stride(A_CONS, us);
-    array_stride(A_WGTS, ws);
-    array_alloc_if_needed(A_CONS);
+    double* u = array_ptr_stride(A_CONS, us);
+    double* w = array_ptr_stride(A_WGTS, ws);
 
     double phi[MAX_DG_ORDER * MAX_DG_ORDER];
 
@@ -705,9 +709,6 @@ int cons_from_wgts()
                 = legendre_polynomial(l, gauss_quadrature_node(order, r));
         }
     }
-
-    double* u = global_array[A_CONS];
-    double* w = global_array[A_WGTS];
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < num_points; ++r) {
@@ -731,14 +732,14 @@ int cons_srf_from_wgts()
     if (array_require_current(A_WGTS)) {
         return 1;
     }
+    array_alloc_if_needed(A_CONS_SRF);
+
     int num_poly = order;
     int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
-
-    array_stride(A_CONS_SRF, us);
-    array_stride(A_WGTS, ws);
-    array_alloc_if_needed(A_CONS_SRF);
+    double* u = array_ptr_stride(A_CONS_SRF, us);
+    double* w = array_ptr_stride(A_WGTS, ws);
 
     double phi_srf[2 * MAX_DG_ORDER];
 
@@ -746,9 +747,6 @@ int cons_srf_from_wgts()
         phi_srf[0 * order + l] = legendre_polynomial(l, -1.0);
         phi_srf[1 * order + l] = legendre_polynomial(l, +1.0);
     }
-
-    double* u = global_array[A_CONS_SRF];
-    double* w = global_array[A_WGTS];
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < 2; ++r) {
@@ -774,24 +772,22 @@ int cons_add_flux_god()
         return 1;
     }
 
-    double* godunov_flux = global_array[A_FLUX_GOD];
-    double* grid = global_array[A_GRID];
-    double* gauss_cons = global_array[A_CONS];
-
     int num_points = order;
     int num_fields = NUM_FIELDS;
     double dt = time_step;
 
-    for (int r = 1; r < num_zones * num_points - 1; ++r) {
-        double* fimh = &godunov_flux[(r + 0) * num_fields];
-        double* fiph = &godunov_flux[(r + 1) * num_fields];
+    double* f = global_array[A_FLUX_GOD];
+    double* x = global_array[A_GRID];
+    double* u = global_array[A_CONS];
 
-        double ximh = 0.5 * (grid[r - 1] + grid[r + 0]);
-        double xiph = 0.5 * (grid[r + 0] + grid[r + 1]);
+    for (int r = 1; r < num_zones * num_points - 1; ++r) {
+        double* fimh = &f[(r + 0) * num_fields];
+        double* fiph = &f[(r + 1) * num_fields];
+        double ximh = 0.5 * (x[r - 1] + x[r + 0]);
+        double xiph = 0.5 * (x[r + 0] + x[r + 1]);
 
         for (int q = 0; q < num_fields; ++q) {
-            gauss_cons[r * num_fields + q]
-                -= (fiph[q] - fimh[q]) * dt / (xiph - ximh);
+            u[r * num_fields + q] -= (fiph[q] - fimh[q]) * dt / (xiph - ximh);
         }
     }
     return 0;
@@ -802,14 +798,10 @@ int cons_apply_bc()
     if (array_require_current(A_CONS)) {
         return 1;
     }
-
     int num_points = order;
     int num_fields = NUM_FIELDS;
     int us[3];
-
-    array_stride(A_WGTS, us);
-
-    double* u = global_array[A_CONS];
+    double* u = array_ptr_stride(A_WGTS, us);
 
     for (int r = 0; r < num_points; ++r) {
         for (int q = 0; q < num_fields; ++q) {
@@ -824,13 +816,21 @@ int cons_apply_bc()
 int wgts_add_dg_deriv()
 {
     if (array_require_current(A_WGTS) || array_require_current(A_FLUX)
-        || array_require_current(A_FLUX_GOD)) {
+        || array_require_current(A_FLUX_GOD) || array_require_current(A_TRZN)) {
         return 1;
     }
 
     int num_poly = order;
     int num_points = order;
     int num_fields = NUM_FIELDS;
+    int gs[3];
+    int fs[3];
+    int ws[3];
+    double* g = array_ptr_stride(A_FLUX_GOD, gs);
+    double* f = array_ptr_stride(A_FLUX, fs);
+    double* w = array_ptr_stride(A_WGTS, ws);
+    double dx = (domain_x1 - domain_x0) / (num_zones - 2);
+    double dt = time_step;
 
     double phi_srf[2 * MAX_DG_ORDER];
     double dph[MAX_DG_ORDER * MAX_DG_ORDER];
@@ -851,23 +851,8 @@ int wgts_add_dg_deriv()
         }
     }
 
-    int gs[3];
-    int fs[3];
-    int ws[3];
-
-    array_stride(A_FLUX_GOD, gs);
-    array_stride(A_FLUX, fs);
-    array_stride(A_WGTS, ws);
-
-    double* g = global_array[A_FLUX_GOD];
-    double* f = global_array[A_FLUX];
-    double* w = global_array[A_WGTS];
-    double dx = (domain_x1 - domain_x0) / (num_zones - 2);
-    double dt = time_step;
-
     for (int i = 1; i < num_zones - 1; ++i) {
         for (int q = 0; q < num_fields; ++q) {
-
             double* fimh = &g[(i + 0) * gs[0]];
             double* fiph = &g[(i + 1) * gs[0]];
 
@@ -879,7 +864,6 @@ int wgts_add_dg_deriv()
                     double dprl = dph[r * order + l];
                     dwiql += firq * dprl * wgt[r];
                 }
-
                 dwiql += fimh[q] * phi_srf[0 * order + l];
                 dwiql -= fiph[q] * phi_srf[1 * order + l];
                 w[i * ws[0] + q * ws[1] + l * ws[2]] += dwiql * dt / dx;
@@ -926,9 +910,8 @@ int wgts_from_cons()
     int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
-
-    array_stride(A_CONS, us);
-    array_stride(A_WGTS, ws);
+    double* u = array_ptr_stride(A_CONS, us);
+    double* w = array_ptr_stride(A_WGTS, ws);
 
     double phi[MAX_DG_ORDER * MAX_DG_ORDER];
     double xsi[MAX_DG_ORDER];
@@ -942,9 +925,6 @@ int wgts_from_cons()
             phi[r * order + l] = legendre_polynomial(l, xsi[r]);
         }
     }
-
-    double* u = global_array[A_CONS];
-    double* w = global_array[A_WGTS];
 
     for (int i = 0; i < num_zones; ++i) {
         for (int q = 0; q < num_fields; ++q) {
@@ -974,12 +954,8 @@ int flux_from_prim()
     int num_points = order;
     int ps[3];
     int fs[3];
-
-    array_stride(A_PRIM, ps);
-    array_stride(A_FLUX, fs);
-
-    double* p = global_array[A_PRIM];
-    double* f = global_array[A_FLUX];
+    double* p = array_ptr_stride(A_PRIM, ps);
+    double* f = array_ptr_stride(A_FLUX, fs);
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < num_points; ++r) {
@@ -1025,12 +1001,8 @@ int flux_god_compute_dg()
 
     int us[3];
     int fs[3];
-    array_stride(A_CONS_SRF, us);
-    array_stride(A_FLUX_GOD, fs);
-
-    double* u = global_array[A_CONS_SRF];
-    double* f = global_array[A_FLUX_GOD];
-
+    double* u = array_ptr_stride(A_CONS_SRF, us);
+    double* f = array_ptr_stride(A_FLUX_GOD, fs);
     double pl[NUM_FIELDS];
     double pr[NUM_FIELDS];
 
@@ -1044,6 +1016,28 @@ int flux_god_compute_dg()
         hydro_riemann_hlle(pl, pr, ul, ur, fhat);
     }
     return array_set_current(A_FLUX_GOD);
+}
+
+int trzn_compute()
+{
+    if (array_require_current(A_WGTS)) {
+        return 1;
+    }
+    array_alloc_if_needed(A_TRZN);
+
+    int k = order - 1;
+    int indicator_field = 0; // density
+    int ts[3];
+    int ws[3];
+    double* t = array_ptr_stride(A_TRZN, ts);
+    double* w = array_ptr_stride(A_WGTS, ws);
+
+    for (int i = 0; i < num_zones; ++i) {
+        double w0 = w[i * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double wk = w[i * ws[0] + indicator_field * ws[1] + k * ws[2]];
+        t[i * ts[0]] = fabs(wk / w0);
+    }
+    return array_set_current(A_TRZN);
 }
 
 int stencil_print()
@@ -1095,21 +1089,22 @@ int run_dg()
     int iteration = 0;
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
     double wavespeed = 2.0;
-    time_step = dx / wavespeed * 0.05;
+    time_step = dx / wavespeed * 0.02;
 
     TRY(grid_init());
-    TRY(prim_init_dwave());
+    TRY(prim_init_sod());
     TRY(cons_from_prim());
     TRY(wgts_from_cons());
 
-    while (time_phys < 1.0) {
+    while (time_phys < 0.2) {
         struct timespec start = timer_start();
 
         TRY(cons_srf_from_wgts());
         TRY(flux_god_compute_dg());
+        // TRY(trzn_compute());
         TRY(flux_from_prim());
         TRY(wgts_add_dg_deriv());
-        TRY(wgts_apply_bc());
+        // TRY(wgts_apply_bc());
         TRY(cons_from_wgts());
         TRY(prim_from_cons());
 
@@ -1278,6 +1273,13 @@ int load_command(const char* cmd)
         return flux_god_compute_fv();
     if (strcmp(cmd, "flux_god:compute_dg") == 0)
         return flux_god_compute_dg();
+
+    if (strcmp(cmd, "trzn:print") == 0)
+        return array_print(A_TRZN);
+    if (strcmp(cmd, "trzn:clear") == 0)
+        return array_clear(A_TRZN);
+    if (strcmp(cmd, "trzn:compute") == 0)
+        return trzn_compute();
 
     if (strcmp(cmd, "run") == 0)
         return run();
