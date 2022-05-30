@@ -619,7 +619,7 @@ void prim_func_sod(double x, double* prim)
 void prim_func_dwave(double x, double* prim)
 {
     prim[0] = 1.0 + 0.5 * sin(2 * M_PI * x);
-    prim[1] = 0.0;
+    prim[1] = 1.0;
     prim[2] = 1.0;
 }
 
@@ -798,6 +798,30 @@ int cons_add_flux_god()
     return 0;
 }
 
+int cons_apply_bc()
+{
+    if (array_require_current(A_CONS)) {
+        return 1;
+    }
+
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+    int us[3];
+
+    array_stride(A_WGTS, us);
+
+    double* u = global_array[A_CONS];
+
+    for (int r = 0; r < num_points; ++r) {
+        for (int q = 0; q < num_fields; ++q) {
+            int a = r * us[1] + q * us[2];
+            u[0 * us[0] + a] = u[(num_zones - 2) * us[0] + a];
+            u[(num_zones - 1) * us[0] + a] = u[1 * us[0] + a];
+        }
+    }
+    return 0;
+}
+
 int wgts_add_dg_deriv()
 {
     if (array_require_current(A_WGTS) || array_require_current(A_FLUX)
@@ -863,8 +887,25 @@ int wgts_add_dg_deriv()
             }
         }
     }
+    return array_set_current(A_WGTS);
+}
 
-    // PERIODIC BC
+int wgts_apply_bc()
+{
+    if (array_require_current(A_WGTS)) {
+        return 1;
+    }
+
+    int num_poly = order;
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+
+    int ws[3];
+
+    array_stride(A_WGTS, ws);
+
+    double* w = global_array[A_WGTS];
+
     for (int q = 0; q < num_fields; ++q) {
         for (int l = 0; l < num_poly; ++l) {
             int a = q * ws[1] + l * ws[2];
@@ -872,7 +913,7 @@ int wgts_add_dg_deriv()
             w[(num_zones - 1) * ws[0] + a] = w[1 * ws[0] + a];
         }
     }
-    return array_set_current(A_WGTS);
+    return 0;
 }
 
 int wgts_from_cons()
@@ -1028,19 +1069,20 @@ int run()
 {
     int iteration = 0;
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
-    time_step = dx / 1.0 * 0.02;
+    double wavespeed = 2.0;
+    time_step = dx / wavespeed * 0.02;
 
     TRY(grid_init());
-    TRY(prim_init_sod());
+    TRY(prim_init_dwave());
     TRY(cons_from_prim());
 
-    while (time_phys < 0.1) {
+    while (time_phys < 1.0) {
         struct timespec start = timer_start();
         TRY(flux_god_compute_fv());
         TRY(cons_add_flux_god());
+        TRY(cons_apply_bc());
         TRY(array_invalidate(A_PRIM));
         TRY(prim_from_cons());
-        // TRY(wgts_from_cons());
         double seconds = timer_end(start) * 1e-9;
         time_phys += time_step;
         iteration += 1;
