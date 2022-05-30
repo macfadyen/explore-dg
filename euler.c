@@ -562,7 +562,6 @@ int grid_init()
     double* grid = global_array[A_GRID];
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
     double x0 = domain_x0 - dx;
-    double x1 = domain_x1 + dx;
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < order; ++r) {
@@ -897,7 +896,6 @@ int wgts_apply_bc()
     }
 
     int num_poly = order;
-    int num_points = order;
     int num_fields = NUM_FIELDS;
 
     int ws[3];
@@ -1092,6 +1090,38 @@ int run()
     return 0;
 }
 
+int run_dg()
+{
+    int iteration = 0;
+    double dx = (domain_x1 - domain_x0) / (num_zones - 2);
+    double wavespeed = 2.0;
+    time_step = dx / wavespeed * 0.05;
+
+    TRY(grid_init());
+    TRY(prim_init_dwave());
+    TRY(cons_from_prim());
+    TRY(wgts_from_cons());
+
+    while (time_phys < 1.0) {
+        struct timespec start = timer_start();
+
+        TRY(cons_srf_from_wgts());
+        TRY(flux_god_compute_dg());
+        TRY(flux_from_prim());
+        TRY(wgts_add_dg_deriv());
+        TRY(wgts_apply_bc());
+        TRY(cons_from_wgts());
+        TRY(prim_from_cons());
+
+        double seconds = timer_end(start) * 1e-9;
+        time_phys += time_step;
+        iteration += 1;
+        printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
+            num_zones / seconds * 1e-6);
+    }
+    return 0;
+}
+
 int set_order(int new_order)
 {
     if (new_order > MAX_DG_ORDER) {
@@ -1251,6 +1281,8 @@ int load_command(const char* cmd)
 
     if (strcmp(cmd, "run") == 0)
         return run();
+    if (strcmp(cmd, "run_dg") == 0)
+        return run_dg();
 
     if (strncmp(cmd, "order=", 6) == 0)
         return set_order(atoi(cmd + 6));
