@@ -397,13 +397,15 @@ static double time_step = 0.0;
 
 #define A_GRID 0
 #define A_WGTS 1
-#define A_PRIM 2
-#define A_CONS 3
-#define A_CONS_SRF 4
-#define A_FLUX 5
-#define A_FLUX_GOD 6
-#define A_TRZN 7
-#define ARRAY_COUNT 8
+#define A_WGTS_DELTA 2
+#define A_PRIM 3
+#define A_CONS 4
+#define A_CONS_DELTA 5
+#define A_CONS_SRF 6
+#define A_FLUX 7
+#define A_FLUX_GOD 8
+#define A_TRZN 9
+#define ARRAY_COUNT 10
 
 #define CURRENT 0
 #define INVALID 1
@@ -416,8 +418,10 @@ const char* array_name(int array)
     switch (array) {
     case A_GRID: return "grid";
     case A_WGTS: return "wgts";
+    case A_WGTS_DELTA: return "wgts_delta";
     case A_PRIM: return "prim";
     case A_CONS: return "cons";
+    case A_CONS_DELTA: return "cons_delta";
     case A_CONS_SRF: return "cons_srf";
     case A_FLUX: return "flux";
     case A_FLUX_GOD: return "flux_god";
@@ -593,8 +597,6 @@ int prim_init(void (*prim_func)(double x, double*))
     array_alloc_if_needed(A_PRIM);
 
     int num_points = order;
-    int xn[3];
-    int pn[3];
     int xs[3];
     int ps[3];
     double* x = array_ptr_stride(A_GRID, xs);
@@ -826,9 +828,11 @@ int wgts_add_dg_deriv()
     int gs[3];
     int fs[3];
     int ws[3];
+    // int ts[3];
     double* g = array_ptr_stride(A_FLUX_GOD, gs);
     double* f = array_ptr_stride(A_FLUX, fs);
     double* w = array_ptr_stride(A_WGTS, ws);
+    // double* t = array_ptr_stride(A_TRZN, ts);
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
     double dt = time_step;
 
@@ -866,10 +870,21 @@ int wgts_add_dg_deriv()
                 }
                 dwiql += fimh[q] * phi_srf[0 * order + l];
                 dwiql -= fiph[q] * phi_srf[1 * order + l];
+
                 w[i * ws[0] + q * ws[1] + l * ws[2]] += dwiql * dt / dx;
+
+                // if (t[i * ts[0]] > 0.001 && l > 0) {
+                //     printf("limit on zone %d\n", i);
+                //     w[i * ws[0] + q * ws[1] + l * ws[2]] = 0.0;
+                // }
             }
         }
     }
+    array_invalidate(A_TRZN);
+    array_invalidate(A_CONS);
+    array_invalidate(A_PRIM);
+    array_invalidate(A_FLUX);
+    array_invalidate(A_FLUX_GOD);
     return array_set_current(A_WGTS);
 }
 
@@ -1099,11 +1114,28 @@ int run_dg()
     while (time_phys < 0.2) {
         struct timespec start = timer_start();
 
-        TRY(cons_srf_from_wgts());
+        // 1. compute troubled zone indicator
+        // 2. compute low-order Godunov flux on internal and zone interfaces
+        // 3. replace with high-order Godunov flux on zone interfaces, except on
+        //    faces adjacent to a troubled zone
+        // 4. compute low-order time derivative Lx of conserved fields in
+        //    troubled zones
+        // 5. compute weights L corresponding to Lx
+        // 6. compute high-order time derivative M of weights
+        // 7. add either L dt or M dt to weights, depending on whether it's a
+        //    troubled zone
+
+        TRY(trzn_compute());
+        TRY(flux_god_compute_fv());
         TRY(flux_god_compute_dg());
-        // TRY(trzn_compute());
+
+        TRY(cons_delta_from_flux_god());
+        TRY(wgts_delta_from_cons_delta());
+
+        TRY(cons_srf_from_wgts());
         TRY(flux_from_prim());
-        TRY(wgts_add_dg_deriv());
+        TRY(wgts_delta_from_dg());
+        TRY(wgts_add_delta());
         // TRY(wgts_apply_bc());
         TRY(cons_from_wgts());
         TRY(prim_from_cons());
