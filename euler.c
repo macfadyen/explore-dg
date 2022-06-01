@@ -578,9 +578,12 @@ int array_print(int array)
     return 0;
 }
 
-int project(int w_array, int u_array)
+int project(int w_array, int u_array, int use_tci)
 {
     if (array_require_current(u_array)) {
+        return 1;
+    }
+    if (use_tci && array_require_current(A_TRZN)) {
         return 1;
     }
     array_alloc_if_needed(w_array);
@@ -590,6 +593,7 @@ int project(int w_array, int u_array)
     int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
+    double* t = global_array[A_TRZN];
     double* u = array_ptr_stride(u_array, us);
     double* w = array_ptr_stride(w_array, ws);
 
@@ -607,6 +611,9 @@ int project(int w_array, int u_array)
     }
 
     for (int i = 0; i < num_zones; ++i) {
+        if (use_tci && t[i] <= tci_threshold) {
+            continue;
+        }
         for (int q = 0; q < num_fields; ++q) {
             for (int l = 0; l < num_poly; ++l) {
                 double wiql = 0.0;
@@ -819,35 +826,6 @@ int cons_srf_from_wgts()
     return array_set_current(A_CONS_SRF);
 }
 
-// int cons_add_flux_god()
-// {
-//     if (array_require_current(A_CONS) || array_require_current(A_FLUX_GOD)
-//         || array_require_current(A_GRID)) {
-//         return 1;
-//     }
-
-//     int num_points = order;
-//     int num_fields = NUM_FIELDS;
-//     double dt = time_step;
-
-//     double* f = global_array[A_FLUX_GOD];
-//     double* x = global_array[A_GRID];
-//     double* u = global_array[A_CONS];
-
-//     for (int r = 1; r < num_zones * num_points - 1; ++r) {
-//         double* fimh = &f[(r + 0) * num_fields];
-//         double* fiph = &f[(r + 1) * num_fields];
-//         double ximh = 0.5 * (x[r - 1] + x[r + 0]);
-//         double xiph = 0.5 * (x[r + 0] + x[r + 1]);
-
-//         for (int q = 0; q < num_fields; ++q) {
-//             u[r * num_fields + q] -= (fiph[q] - fimh[q]) * dt / (xiph -
-//             ximh);
-//         }
-//     }
-//     return 0;
-// }
-
 int cons_delta_from_flux_god()
 {
     if (array_require_current(A_FLUX_GOD) || array_require_current(A_GRID)) {
@@ -1003,7 +981,7 @@ int wgts_add_delta()
 
 int wgts_from_cons()
 {
-    return project(A_WGTS, A_CONS);
+    return project(A_WGTS, A_CONS, 0);
 }
 
 int wgts_apply_bc()
@@ -1033,7 +1011,7 @@ int wgts_apply_bc()
 
 int wgts_delta_from_cons_delta()
 {
-    return project(A_WGTS_DELTA, A_CONS_DELTA);
+    return project(A_WGTS_DELTA, A_CONS_DELTA, 1);
 }
 
 int flux_from_prim()
@@ -1148,33 +1126,6 @@ int stencil_print()
     }
     return 0;
 }
-
-// int run()
-// {
-//     int iteration = 0;
-//     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
-//     double wavespeed = 2.0;
-//     time_step = dx / wavespeed * 0.02;
-
-//     TRY(grid_init());
-//     TRY(prim_init_dwave());
-//     TRY(cons_from_prim());
-
-//     while (time_phys < 1.0) {
-//         struct timespec start = timer_start();
-//         TRY(flux_god_compute_fv());
-//         TRY(cons_add_flux_god());
-//         TRY(cons_apply_bc());
-//         TRY(array_invalidate(A_PRIM));
-//         TRY(prim_from_cons());
-//         double seconds = timer_end(start) * 1e-9;
-//         time_phys += time_step;
-//         iteration += 1;
-//         printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
-//             num_zones / seconds * 1e-6);
-//     }
-//     return 0;
-// }
 
 int run()
 {
