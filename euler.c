@@ -394,19 +394,21 @@ static double domain_x0 = 0.0;
 static double domain_x1 = 1.0;
 static double time_phys = 0.0;
 static double time_step = 0.0;
-// static double tci_threshold = 0.01;
+static double rk_parameter = 0.0;
+static double tci_threshold = 0.001;
 
 #define A_GRID 0
 #define A_WGTS 1
-#define A_WGTS_DELTA 2
-#define A_PRIM 3
-#define A_CONS 4
-#define A_CONS_DELTA 5
-#define A_CONS_SRF 6
-#define A_FLUX 7
-#define A_FLUX_GOD 8
-#define A_TRZN 9
-#define ARRAY_COUNT 10
+#define A_WGTS_CACHE 2
+#define A_WGTS_DELTA 3
+#define A_PRIM 4
+#define A_CONS 5
+#define A_CONS_DELTA 6
+#define A_CONS_SRF 7
+#define A_FLUX 8
+#define A_FLUX_GOD 9
+#define A_TRZN 10
+#define ARRAY_COUNT 12
 
 #define CURRENT 0
 #define INVALID 1
@@ -445,6 +447,7 @@ void array_shape(int array, int* shape)
         shape[2] = 1;
         return;
     case A_WGTS:
+    case A_WGTS_CACHE:
     case A_WGTS_DELTA:
         shape[0] = ni;
         shape[1] = nq;
@@ -816,33 +819,34 @@ int cons_srf_from_wgts()
     return array_set_current(A_CONS_SRF);
 }
 
-int cons_add_flux_god()
-{
-    if (array_require_current(A_CONS) || array_require_current(A_FLUX_GOD)
-        || array_require_current(A_GRID)) {
-        return 1;
-    }
+// int cons_add_flux_god()
+// {
+//     if (array_require_current(A_CONS) || array_require_current(A_FLUX_GOD)
+//         || array_require_current(A_GRID)) {
+//         return 1;
+//     }
 
-    int num_points = order;
-    int num_fields = NUM_FIELDS;
-    double dt = time_step;
+//     int num_points = order;
+//     int num_fields = NUM_FIELDS;
+//     double dt = time_step;
 
-    double* f = global_array[A_FLUX_GOD];
-    double* x = global_array[A_GRID];
-    double* u = global_array[A_CONS];
+//     double* f = global_array[A_FLUX_GOD];
+//     double* x = global_array[A_GRID];
+//     double* u = global_array[A_CONS];
 
-    for (int r = 1; r < num_zones * num_points - 1; ++r) {
-        double* fimh = &f[(r + 0) * num_fields];
-        double* fiph = &f[(r + 1) * num_fields];
-        double ximh = 0.5 * (x[r - 1] + x[r + 0]);
-        double xiph = 0.5 * (x[r + 0] + x[r + 1]);
+//     for (int r = 1; r < num_zones * num_points - 1; ++r) {
+//         double* fimh = &f[(r + 0) * num_fields];
+//         double* fiph = &f[(r + 1) * num_fields];
+//         double ximh = 0.5 * (x[r - 1] + x[r + 0]);
+//         double xiph = 0.5 * (x[r + 0] + x[r + 1]);
 
-        for (int q = 0; q < num_fields; ++q) {
-            u[r * num_fields + q] -= (fiph[q] - fimh[q]) * dt / (xiph - ximh);
-        }
-    }
-    return 0;
-}
+//         for (int q = 0; q < num_fields; ++q) {
+//             u[r * num_fields + q] -= (fiph[q] - fimh[q]) * dt / (xiph -
+//             ximh);
+//         }
+//     }
+//     return 0;
+// }
 
 int cons_delta_from_flux_god()
 {
@@ -894,8 +898,8 @@ int cons_apply_bc()
 
 int wgts_delta_from_dg()
 {
-    if (array_require_current(A_FLUX) || array_require_current(A_FLUX_GOD)) {
-        //        || array_require_current(A_TRZN)) {
+    if (array_require_current(A_FLUX) || array_require_current(A_FLUX_GOD)
+        || array_require_current(A_TRZN)) {
         return 1;
     }
     array_alloc_if_needed(A_WGTS_DELTA);
@@ -906,7 +910,7 @@ int wgts_delta_from_dg()
     int gs[3];
     int fs[3];
     int ws[3];
-    // double* t = global_array[A_TRZN];
+    double* t = global_array[A_TRZN];
     double* g = array_ptr_stride(A_FLUX_GOD, gs);
     double* f = array_ptr_stride(A_FLUX, fs);
     double* dw = array_ptr_stride(A_WGTS_DELTA, ws);
@@ -933,9 +937,9 @@ int wgts_delta_from_dg()
     }
 
     for (int i = 1; i < num_zones - 1; ++i) {
-        // if (t[i] > tci_threshold) {
-        //     continue;
-        // }
+        if (t[i] > tci_threshold) {
+            continue;
+        }
         for (int q = 0; q < num_fields; ++q) {
             double* fimh = &g[(i + 0) * gs[0]];
             double* fiph = &g[(i + 1) * gs[0]];
@@ -958,25 +962,41 @@ int wgts_delta_from_dg()
     return array_set_current(A_WGTS_DELTA);
 }
 
+int wgts_cache_from_wgts()
+{
+    if (array_require_current(A_WGTS)) {
+        return 1;
+    }
+    array_alloc_if_needed(A_WGTS_CACHE);
+
+    double* w = global_array[A_WGTS];
+    double* w0 = global_array[A_WGTS_CACHE];
+    memcpy(w0, w, array_len(A_WGTS) * sizeof(double));
+
+    return array_set_current(A_WGTS_CACHE);
+}
+
 int wgts_add_delta()
 {
-    if (array_require_current(A_WGTS) && array_require_current(A_WGTS_DELTA)) {
+    if (array_require_current(A_WGTS) || array_require_current(A_WGTS_CACHE)
+        || array_require_current(A_WGTS_DELTA)) {
         return 1;
     }
 
     size_t elem = array_len(A_WGTS);
     double* w = global_array[A_WGTS];
+    double* w0 = global_array[A_WGTS_CACHE];
     double* dw = global_array[A_WGTS_DELTA];
+    double rk = rk_parameter;
 
     for (size_t a = 0; a < elem; ++a) {
-        w[a] += dw[a];
+        w[a] = w0[a] * rk + (w[a] + dw[a]) * (1.0 - rk);
     }
 
-    array_invalidate(A_TRZN);
     array_invalidate(A_CONS);
-    array_invalidate(A_CONS_SRF);
     array_invalidate(A_PRIM);
     array_invalidate(A_FLUX);
+    array_invalidate(A_CONS_SRF);
     array_invalidate(A_FLUX_GOD);
     return 0;
 }
@@ -1129,34 +1149,34 @@ int stencil_print()
     return 0;
 }
 
+// int run()
+// {
+//     int iteration = 0;
+//     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
+//     double wavespeed = 2.0;
+//     time_step = dx / wavespeed * 0.02;
+
+//     TRY(grid_init());
+//     TRY(prim_init_dwave());
+//     TRY(cons_from_prim());
+
+//     while (time_phys < 1.0) {
+//         struct timespec start = timer_start();
+//         TRY(flux_god_compute_fv());
+//         TRY(cons_add_flux_god());
+//         TRY(cons_apply_bc());
+//         TRY(array_invalidate(A_PRIM));
+//         TRY(prim_from_cons());
+//         double seconds = timer_end(start) * 1e-9;
+//         time_phys += time_step;
+//         iteration += 1;
+//         printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
+//             num_zones / seconds * 1e-6);
+//     }
+//     return 0;
+// }
+
 int run()
-{
-    int iteration = 0;
-    double dx = (domain_x1 - domain_x0) / (num_zones - 2);
-    double wavespeed = 2.0;
-    time_step = dx / wavespeed * 0.02;
-
-    TRY(grid_init());
-    TRY(prim_init_dwave());
-    TRY(cons_from_prim());
-
-    while (time_phys < 1.0) {
-        struct timespec start = timer_start();
-        TRY(flux_god_compute_fv());
-        TRY(cons_add_flux_god());
-        TRY(cons_apply_bc());
-        TRY(array_invalidate(A_PRIM));
-        TRY(prim_from_cons());
-        double seconds = timer_end(start) * 1e-9;
-        time_phys += time_step;
-        iteration += 1;
-        printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
-            num_zones / seconds * 1e-6);
-    }
-    return 0;
-}
-
-int run_dg()
 {
     int iteration = 0;
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
@@ -1182,27 +1202,35 @@ int run_dg()
         // 7. add either L dt or M dt to weights, depending on whether it's a
         //    troubled zone
 
-        // TRY(trzn_compute());
-        // TRY(cons_srf_from_wgts());
-        // TRY(flux_god_compute_fv());
-        // TRY(flux_god_compute_dg());
-        // TRY(cons_delta_from_flux_god());
-        // TRY(wgts_delta_from_cons_delta());
-        // TRY(flux_from_prim());
-        // TRY(wgts_delta_from_dg());
-        // TRY(wgts_add_delta());
-        // // TRY(wgts_apply_bc());
-        // TRY(cons_from_wgts());
-        // TRY(prim_from_cons());
+        TRY(trzn_compute());
+        TRY(wgts_cache_from_wgts());
 
+        rk_parameter = 0.0;
         TRY(cons_srf_from_wgts());
+        TRY(flux_god_compute_fv());
         TRY(flux_god_compute_dg());
+        TRY(cons_delta_from_flux_god());
+        TRY(wgts_delta_from_cons_delta());
         TRY(flux_from_prim());
         TRY(wgts_delta_from_dg());
         TRY(wgts_add_delta());
-        // TRY(wgts_apply_bc());
         TRY(cons_from_wgts());
         TRY(prim_from_cons());
+
+        rk_parameter = 0.5;
+        TRY(cons_srf_from_wgts());
+        TRY(flux_god_compute_fv());
+        TRY(flux_god_compute_dg());
+        TRY(cons_delta_from_flux_god());
+        TRY(wgts_delta_from_cons_delta());
+        TRY(flux_from_prim());
+        TRY(wgts_delta_from_dg());
+        TRY(wgts_add_delta());
+        TRY(cons_from_wgts());
+        TRY(prim_from_cons());
+
+        array_invalidate(A_TRZN);
+        array_invalidate(A_WGTS_CACHE);
 
         double seconds = timer_end(start) * 1e-9;
         time_phys += time_step;
@@ -1244,6 +1272,12 @@ int set_num_zones(int new_num_zones)
         }
     }
     num_zones = new_num_zones + 2; // tack on guard zones here
+    return 0;
+}
+
+int set_tci_threshold(double tci)
+{
+    tci_threshold = tci;
     return 0;
 }
 
@@ -1335,8 +1369,6 @@ int load_command(const char* cmd)
         return cons_from_prim();
     if (strcmp(cmd, "cons:from_wgts") == 0)
         return cons_from_wgts();
-    if (strcmp(cmd, "cons:add_flux_god") == 0)
-        return cons_add_flux_god();
 
     if (strcmp(cmd, "cons_srf:print") == 0)
         return array_print(A_CONS_SRF);
@@ -1382,13 +1414,13 @@ int load_command(const char* cmd)
 
     if (strcmp(cmd, "run") == 0)
         return run();
-    if (strcmp(cmd, "run_dg") == 0)
-        return run_dg();
 
     if (strncmp(cmd, "order=", 6) == 0)
         return set_order(atoi(cmd + 6));
     if (strncmp(cmd, "num_zones=", 10) == 0)
         return set_num_zones(atoi(cmd + 10));
+    if (strncmp(cmd, "tci=", 4) == 0)
+        return set_tci_threshold(atof(cmd + 4));
     if (strncmp(cmd, "terminal=", 9) == 0)
         return set_terminal(cmd + 9);
     if (strncmp(cmd, "load:", 5) == 0)
