@@ -1018,12 +1018,8 @@ int wgts_apply_bc()
 
     int num_poly = order;
     int num_fields = NUM_FIELDS;
-
     int ws[3];
-
-    array_stride(A_WGTS, ws);
-
-    double* w = global_array[A_WGTS];
+    double* w = array_ptr_stride(A_WGTS, ws);
 
     for (int q = 0; q < num_fields; ++q) {
         for (int l = 0; l < num_poly; ++l) {
