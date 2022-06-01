@@ -304,6 +304,31 @@ double gauss_quadrature_weight(int order, int index)
     assert(0);
 }
 
+double rk_parameter_for_step(int s, int rk_order)
+{
+    switch (rk_order) {
+    case 1:
+        switch (s) {
+        case 0: return 0.0;
+        }
+        break;
+    case 2:
+        switch (s) {
+        case 0: return 0.0;
+        case 1: return 0.5;
+        }
+        break;
+    case 3:
+        switch (s) {
+        case 0: return 0.0;
+        case 1: return 3.0 / 4.0;
+        case 2: return 1.0 / 3.0;
+        }
+        break;
+    }
+    assert(0);
+}
+
 void hydro_prim_to_cons(double* prim, double* cons)
 {
     double rho = prim[0];
@@ -390,6 +415,7 @@ void hydro_riemann_hlle(
 static FILE* terminal = NULL;
 static int num_zones = 20;
 static int order = 3;
+static int rk_order = 1;
 static double domain_x0 = 0.0;
 static double domain_x1 = 1.0;
 static double time_phys = 0.0;
@@ -1064,19 +1090,23 @@ int flux_god_compute_fv()
 
 int flux_god_compute_dg()
 {
-    if (array_require_current(A_CONS_SRF)) {
+    if (array_require_current(A_CONS_SRF) || array_require_current(A_TRZN)) {
         return 1;
     }
     array_alloc_if_needed(A_FLUX_GOD);
 
     int us[3];
     int fs[3];
+    double* t = global_array[A_TRZN];
     double* u = array_ptr_stride(A_CONS_SRF, us);
     double* f = array_ptr_stride(A_FLUX_GOD, fs);
     double pl[NUM_FIELDS];
     double pr[NUM_FIELDS];
 
     for (int i = 0; i < num_zones - 1; ++i) {
+        if (t[i] > tci_threshold || t[i + 1] > tci_threshold) {
+            continue;
+        }
         double* ul = &u[(i + 0) * us[0] + 1 * us[1]];
         double* ur = &u[(i + 1) * us[0] + 0 * us[1]];
         double* fhat = &f[(i + 1) * fs[0]];
@@ -1139,7 +1169,7 @@ int run()
     TRY(cons_from_prim());
     TRY(wgts_from_cons());
 
-    while (time_phys < 0.1) {
+    while (time_phys < 0.2) {
         struct timespec start = timer_start();
 
         // 1. compute troubled zone indicator
@@ -1156,30 +1186,19 @@ int run()
         TRY(trzn_compute());
         TRY(wgts_cache_from_wgts());
 
-        rk_parameter = 0.0;
-        TRY(cons_srf_from_wgts());
-        TRY(flux_god_compute_fv());
-        TRY(flux_god_compute_dg());
-        TRY(cons_delta_from_flux_god());
-        TRY(wgts_delta_from_cons_delta());
-        TRY(flux_from_prim());
-        TRY(wgts_delta_from_dg());
-        TRY(wgts_add_delta());
-        TRY(cons_from_wgts());
-        TRY(prim_from_cons());
-
-        rk_parameter = 0.5;
-        TRY(cons_srf_from_wgts());
-        TRY(flux_god_compute_fv());
-        TRY(flux_god_compute_dg());
-        TRY(cons_delta_from_flux_god());
-        TRY(wgts_delta_from_cons_delta());
-        TRY(flux_from_prim());
-        TRY(wgts_delta_from_dg());
-        TRY(wgts_add_delta());
-        TRY(cons_from_wgts());
-        TRY(prim_from_cons());
-
+        for (int s = 0; s < rk_order; ++s) {
+            rk_parameter = rk_parameter_for_step(s, rk_order);
+            TRY(cons_srf_from_wgts());
+            TRY(flux_god_compute_fv());
+            TRY(flux_god_compute_dg());
+            TRY(cons_delta_from_flux_god());
+            TRY(wgts_delta_from_cons_delta());
+            TRY(flux_from_prim());
+            TRY(wgts_delta_from_dg());
+            TRY(wgts_add_delta());
+            TRY(cons_from_wgts());
+            TRY(prim_from_cons());
+        }
         array_invalidate(A_TRZN);
         array_invalidate(A_WGTS_CACHE);
 
@@ -1208,6 +1227,17 @@ int set_order(int new_order)
         }
     }
     order = new_order;
+    return 0;
+}
+
+int set_rk_order(int new_rk_order)
+{
+    if (new_rk_order < 1 || new_rk_order > 3) {
+        fprintf(stderr, "[error] rk_order must be between 1 and 3, got %d\n",
+            new_rk_order);
+        return 1;
+    }
+    rk_order = new_rk_order;
     return 0;
 }
 
@@ -1368,6 +1398,9 @@ int load_command(const char* cmd)
 
     if (strncmp(cmd, "order=", 6) == 0)
         return set_order(atoi(cmd + 6));
+    if (strncmp(cmd, "rk=", 3) == 0)
+        return set_rk_order(atoi(cmd + 3));
+
     if (strncmp(cmd, "num_zones=", 10) == 0)
         return set_num_zones(atoi(cmd + 10));
     if (strncmp(cmd, "tci=", 4) == 0)
