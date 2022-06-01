@@ -191,8 +191,8 @@ def time_derivative(w, x_grid, dx, setup, ck=0.01):
 
     troubled_zones = where(abs(w[1:-1, 0, -1] / w[1:-1, 0, 0]) > ck)[0]
 
-    for zone in troubled_zones:
-        w_dot[zone + 1] = w_dot_god[zone + 1]
+    # for zone in troubled_zones:
+    #     w_dot[zone + 1] = w_dot_god[zone + 1]
 
     time_derivative.troubled_zones = troubled_zones
 
@@ -220,7 +220,7 @@ def set_bc(w, setup):
 
 def initial_condition(x, setup):
     if setup == "density_wave":
-        rho = 1.0 + 0.1 * sin(2 * pi * x)
+        rho = 1.0 + 0.5 * sin(2 * pi * x)
         vel = 1.0 + zeros_like(x)
         pre = ones_like(x)
 

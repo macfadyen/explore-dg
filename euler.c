@@ -56,7 +56,7 @@ double legendre_polynomial(int n, double x)
     for (int k = 0; k <= n; ++k) {
         p += choose(n, k) * choose(n + k, k) * pow(0.5 * (x - 1), k);
     }
-    return p;
+    return p * sqrt(2 * n + 1);
 }
 
 double legendre_polynomial_derivative(int n, double x)
@@ -67,7 +67,7 @@ double legendre_polynomial_derivative(int n, double x)
         p += choose(n, k) * choose(n + k, k) * 0.5 * k
             * pow(0.5 * (x - 1), k - 1);
     }
-    return p;
+    return p * sqrt(2 * n + 1);
 }
 
 double gauss_quadrature_node(int order, int index)
@@ -394,6 +394,7 @@ static double domain_x0 = 0.0;
 static double domain_x1 = 1.0;
 static double time_phys = 0.0;
 static double time_step = 0.0;
+// static double tci_threshold = 0.01;
 
 #define A_GRID 0
 #define A_WGTS 1
@@ -444,6 +445,7 @@ void array_shape(int array, int* shape)
         shape[2] = 1;
         return;
     case A_WGTS:
+    case A_WGTS_DELTA:
         shape[0] = ni;
         shape[1] = nq;
         shape[2] = nl;
@@ -454,6 +456,7 @@ void array_shape(int array, int* shape)
         shape[2] = nq;
         return;
     case A_CONS:
+    case A_CONS_DELTA:
         shape[0] = ni;
         shape[1] = nr;
         shape[2] = nq;
@@ -570,6 +573,52 @@ int array_print(int array)
         }
     }
     return 0;
+}
+
+int project(int w_array, int u_array)
+{
+    if (array_require_current(u_array)) {
+        return 1;
+    }
+    array_alloc_if_needed(w_array);
+
+    int num_poly = order;
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+    int us[3];
+    int ws[3];
+    double* u = array_ptr_stride(u_array, us);
+    double* w = array_ptr_stride(w_array, ws);
+
+    double phi[MAX_DG_ORDER * MAX_DG_ORDER];
+    double xsi[MAX_DG_ORDER];
+    double wgt[MAX_DG_ORDER];
+
+    for (int r = 0; r < num_points; ++r) {
+        xsi[r] = gauss_quadrature_node(order, r);
+        wgt[r] = gauss_quadrature_weight(order, r);
+
+        for (int l = 0; l < num_poly; ++l) {
+            phi[r * order + l] = legendre_polynomial(l, xsi[r]);
+        }
+    }
+
+    for (int i = 0; i < num_zones; ++i) {
+        for (int q = 0; q < num_fields; ++q) {
+            for (int l = 0; l < num_poly; ++l) {
+                double wiql = 0.0;
+
+                for (int r = 0; r < num_points; ++r) {
+                    double wr = wgt[r];
+                    double prl = phi[r * order + l];
+                    double* uirq = &u[i * us[0] + r * us[1] + q * us[2]];
+                    wiql += *uirq * prl * wr * 0.5;
+                }
+                w[i * ws[0] + q * ws[1] + l * ws[2]] = wiql;
+            }
+        }
+    }
+    return array_set_current(w_array);
 }
 
 int grid_init()
@@ -795,6 +844,34 @@ int cons_add_flux_god()
     return 0;
 }
 
+int cons_delta_from_flux_god()
+{
+    if (array_require_current(A_FLUX_GOD) || array_require_current(A_GRID)) {
+        return 1;
+    }
+    array_alloc_if_needed(A_CONS_DELTA);
+
+    int num_points = order;
+    int num_fields = NUM_FIELDS;
+    double dt = time_step;
+
+    double* f = global_array[A_FLUX_GOD];
+    double* x = global_array[A_GRID];
+    double* du = global_array[A_CONS_DELTA];
+
+    for (int r = 1; r < num_zones * num_points - 1; ++r) {
+        double* fimh = &f[(r + 0) * num_fields];
+        double* fiph = &f[(r + 1) * num_fields];
+        double ximh = 0.5 * (x[r - 1] + x[r + 0]);
+        double xiph = 0.5 * (x[r + 0] + x[r + 1]);
+
+        for (int q = 0; q < num_fields; ++q) {
+            du[r * num_fields + q] = -(fiph[q] - fimh[q]) * dt / (xiph - ximh);
+        }
+    }
+    return array_set_current(A_CONS_DELTA);
+}
+
 int cons_apply_bc()
 {
     if (array_require_current(A_CONS)) {
@@ -815,12 +892,13 @@ int cons_apply_bc()
     return 0;
 }
 
-int wgts_add_dg_deriv()
+int wgts_delta_from_dg()
 {
-    if (array_require_current(A_WGTS) || array_require_current(A_FLUX)
-        || array_require_current(A_FLUX_GOD) || array_require_current(A_TRZN)) {
+    if (array_require_current(A_FLUX) || array_require_current(A_FLUX_GOD)) {
+        //        || array_require_current(A_TRZN)) {
         return 1;
     }
+    array_alloc_if_needed(A_WGTS_DELTA);
 
     int num_poly = order;
     int num_points = order;
@@ -828,11 +906,10 @@ int wgts_add_dg_deriv()
     int gs[3];
     int fs[3];
     int ws[3];
-    // int ts[3];
+    // double* t = global_array[A_TRZN];
     double* g = array_ptr_stride(A_FLUX_GOD, gs);
     double* f = array_ptr_stride(A_FLUX, fs);
-    double* w = array_ptr_stride(A_WGTS, ws);
-    // double* t = array_ptr_stride(A_TRZN, ts);
+    double* dw = array_ptr_stride(A_WGTS_DELTA, ws);
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
     double dt = time_step;
 
@@ -856,6 +933,9 @@ int wgts_add_dg_deriv()
     }
 
     for (int i = 1; i < num_zones - 1; ++i) {
+        // if (t[i] > tci_threshold) {
+        //     continue;
+        // }
         for (int q = 0; q < num_fields; ++q) {
             double* fimh = &g[(i + 0) * gs[0]];
             double* fiph = &g[(i + 1) * gs[0]];
@@ -871,21 +951,39 @@ int wgts_add_dg_deriv()
                 dwiql += fimh[q] * phi_srf[0 * order + l];
                 dwiql -= fiph[q] * phi_srf[1 * order + l];
 
-                w[i * ws[0] + q * ws[1] + l * ws[2]] += dwiql * dt / dx;
-
-                // if (t[i * ts[0]] > 0.001 && l > 0) {
-                //     printf("limit on zone %d\n", i);
-                //     w[i * ws[0] + q * ws[1] + l * ws[2]] = 0.0;
-                // }
+                dw[i * ws[0] + q * ws[1] + l * ws[2]] = dwiql * dt / dx;
             }
         }
     }
+    return array_set_current(A_WGTS_DELTA);
+}
+
+int wgts_add_delta()
+{
+    if (array_require_current(A_WGTS) && array_require_current(A_WGTS_DELTA)) {
+        return 1;
+    }
+
+    size_t elem = array_len(A_WGTS);
+    double* w = global_array[A_WGTS];
+    double* dw = global_array[A_WGTS_DELTA];
+
+    for (size_t a = 0; a < elem; ++a) {
+        w[a] += dw[a];
+    }
+
     array_invalidate(A_TRZN);
     array_invalidate(A_CONS);
+    array_invalidate(A_CONS_SRF);
     array_invalidate(A_PRIM);
     array_invalidate(A_FLUX);
     array_invalidate(A_FLUX_GOD);
-    return array_set_current(A_WGTS);
+    return 0;
+}
+
+int wgts_from_cons()
+{
+    return project(A_WGTS, A_CONS);
 }
 
 int wgts_apply_bc()
@@ -913,50 +1011,9 @@ int wgts_apply_bc()
     return 0;
 }
 
-int wgts_from_cons()
+int wgts_delta_from_cons_delta()
 {
-    if (array_require_current(A_CONS)) {
-        return 1;
-    }
-    array_alloc_if_needed(A_WGTS);
-
-    int num_poly = order;
-    int num_points = order;
-    int num_fields = NUM_FIELDS;
-    int us[3];
-    int ws[3];
-    double* u = array_ptr_stride(A_CONS, us);
-    double* w = array_ptr_stride(A_WGTS, ws);
-
-    double phi[MAX_DG_ORDER * MAX_DG_ORDER];
-    double xsi[MAX_DG_ORDER];
-    double wgt[MAX_DG_ORDER];
-
-    for (int r = 0; r < num_points; ++r) {
-        xsi[r] = gauss_quadrature_node(order, r);
-        wgt[r] = gauss_quadrature_weight(order, r);
-
-        for (int l = 0; l < num_poly; ++l) {
-            phi[r * order + l] = legendre_polynomial(l, xsi[r]);
-        }
-    }
-
-    for (int i = 0; i < num_zones; ++i) {
-        for (int q = 0; q < num_fields; ++q) {
-            for (int l = 0; l < num_poly; ++l) {
-                double wiql = 0.0;
-
-                for (int r = 0; r < num_points; ++r) {
-                    double wr = wgt[r];
-                    double prl = phi[r * order + l];
-                    double* uirq = &u[i * us[0] + r * us[1] + q * us[2]];
-                    wiql += *uirq * prl * wr * 0.5;
-                }
-                w[i * ws[0] + q * ws[1] + l * ws[2]] = wiql;
-            }
-        }
-    }
-    return array_set_current(A_WGTS);
+    return project(A_WGTS_DELTA, A_CONS_DELTA);
 }
 
 int flux_from_prim()
@@ -1064,8 +1121,8 @@ int stencil_print()
         for (int r = 0; r < order; ++r) {
             double x = gauss_quadrature_node(order, r);
             double w = gauss_quadrature_weight(order, r);
-            double y = legendre_polynomial(n, x) * sqrt(2 * n + 1);
-            double z = legendre_polynomial_derivative(n, x) * sqrt(2 * n + 1);
+            double y = legendre_polynomial(n, x);
+            double z = legendre_polynomial_derivative(n, x);
             printf("%+.8f %+.8f %+.8f %+.8f\n", x, w, y, z);
         }
     }
@@ -1111,13 +1168,13 @@ int run_dg()
     TRY(cons_from_prim());
     TRY(wgts_from_cons());
 
-    while (time_phys < 0.2) {
+    while (time_phys < 0.1) {
         struct timespec start = timer_start();
 
         // 1. compute troubled zone indicator
         // 2. compute low-order Godunov flux on internal and zone interfaces
-        // 3. replace with high-order Godunov flux on zone interfaces, except on
-        //    faces adjacent to a troubled zone
+        // 3. replace with high-order Godunov flux on zone interfaces, except
+        //    on faces adjacent to a troubled zone
         // 4. compute low-order time derivative Lx of conserved fields in
         //    troubled zones
         // 5. compute weights L corresponding to Lx
@@ -1125,14 +1182,21 @@ int run_dg()
         // 7. add either L dt or M dt to weights, depending on whether it's a
         //    troubled zone
 
-        TRY(trzn_compute());
-        TRY(flux_god_compute_fv());
-        TRY(flux_god_compute_dg());
-
-        TRY(cons_delta_from_flux_god());
-        TRY(wgts_delta_from_cons_delta());
+        // TRY(trzn_compute());
+        // TRY(cons_srf_from_wgts());
+        // TRY(flux_god_compute_fv());
+        // TRY(flux_god_compute_dg());
+        // TRY(cons_delta_from_flux_god());
+        // TRY(wgts_delta_from_cons_delta());
+        // TRY(flux_from_prim());
+        // TRY(wgts_delta_from_dg());
+        // TRY(wgts_add_delta());
+        // // TRY(wgts_apply_bc());
+        // TRY(cons_from_wgts());
+        // TRY(prim_from_cons());
 
         TRY(cons_srf_from_wgts());
+        TRY(flux_god_compute_dg());
         TRY(flux_from_prim());
         TRY(wgts_delta_from_dg());
         TRY(wgts_add_delta());
@@ -1179,7 +1243,7 @@ int set_num_zones(int new_num_zones)
             return 1;
         }
     }
-    num_zones = new_num_zones;
+    num_zones = new_num_zones + 2; // tack on guard zones here
     return 0;
 }
 
@@ -1260,8 +1324,6 @@ int load_command(const char* cmd)
         return prim_init_sod();
     if (strcmp(cmd, "prim:init_dwave") == 0)
         return prim_init_dwave();
-    if (strcmp(cmd, "prim:init_dwave") == 0)
-        return prim_init_dwave();
     if (strcmp(cmd, "prim:from_cons") == 0)
         return prim_from_cons();
 
@@ -1294,8 +1356,13 @@ int load_command(const char* cmd)
         return array_clear(A_WGTS);
     if (strcmp(cmd, "wgts:from_cons") == 0)
         return wgts_from_cons();
-    if (strcmp(cmd, "wgts:add_dg_deriv") == 0)
-        return wgts_add_dg_deriv();
+    if (strcmp(cmd, "wgts:add_delta") == 0)
+        return wgts_add_delta();
+
+    if (strcmp(cmd, "cons_delta:from_flux_god") == 0)
+        return cons_delta_from_flux_god();
+    if (strcmp(cmd, "wgts_delta:from_cons_delta") == 0)
+        return wgts_delta_from_cons_delta();
 
     if (strcmp(cmd, "flux_god:print") == 0)
         return array_print(A_FLUX_GOD);
