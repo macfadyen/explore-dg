@@ -22,7 +22,7 @@
 static FILE* terminal = NULL;
 static int num_zones = 20;
 static int order = 3;
-static int rk_order = 1;
+static int rk_order = 3;
 static double domain_x0 = 0.0;
 static double domain_x1 = 1.0;
 static double time_phys = 0.0;
@@ -701,7 +701,7 @@ int prim_init(void (*prim_func)(double x, double*))
     return array_set_current(A_PRIM);
 }
 
-void prim_func_sod(double x, double* prim)
+void prim_func_sod1(double x, double* prim)
 {
     if (x < 0.5) {
         prim[0] = 1.0;
@@ -714,9 +714,9 @@ void prim_func_sod(double x, double* prim)
     }
 }
 
-int prim_init_sod()
+int prim_init_sod1()
 {
-    return prim_init(prim_func_sod);
+    return prim_init(prim_func_sod1);
 }
 
 void prim_func_dwave(double x, double* prim)
@@ -890,6 +890,34 @@ int cons_from_prim()
         }
     }
     return array_set_current(A_CONS);
+}
+
+int timestep_compute()
+{
+    if (array_require_current(A_PRIM)) {
+        return 1;
+    }
+
+    double dx = (domain_x1 - domain_x0) / (num_zones - 2);
+
+    int num_points = order;
+    int ps[3];
+
+    double timestep = 1e30;
+    double* p = array_ptr_stride(A_PRIM, ps);
+
+    for (int i = 0; i < num_zones; ++i) {
+        for (int r = 0; r < num_points; ++r) {
+            double* prim = &p[i * ps[0] + r * ps[1]];
+            double vel = prim[1];
+            double cs  = hydro_sound_speed(prim);
+            double lam_p = vel + cs;
+            double lam_m = vel - cs;
+            timestep = min2(timestep, cfl_parameter * dx / max2(fabs(lam_m), fabs(lam_p)));
+        }
+    }
+    time_step = timestep;
+    return 0;
 }
 
 int cons_from_wgts()
@@ -1276,11 +1304,11 @@ int run()
 {
     int iteration = 0;
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
-    double wavespeed = 2.0;
-    time_step = dx / wavespeed * cfl_parameter;
+    //double wavespeed = 2.0;
+    //time_step = dx / wavespeed * cfl_parameter;
 
     TRY(grid_init());
-    TRY(prim_init_test5());
+    TRY(prim_init_sod1());
     TRY(cons_from_prim());
     TRY(wgts_from_cons());
 
@@ -1299,6 +1327,7 @@ int run()
         //    troubled zone
 
         TRY(trzn_compute());
+        TRY(timestep_compute());
         TRY(wgts_cache_from_wgts());
 
         for (int s = 0; s < rk_order; ++s) {
@@ -1320,7 +1349,7 @@ int run()
         double seconds = timer_end(start) * 1e-9;
         time_phys += time_step;
         iteration += 1;
-        printf("[%04d] t = %.3f Mzps=%.3f\n", iteration, time_phys,
+        printf("[%04d] t = %.4f dt = %.4e Mzps=%.3f\n", iteration, time_phys, time_step,
             num_zones / seconds * 1e-6);
     }
     return 0;
@@ -1468,8 +1497,8 @@ int load_command(const char* cmd)
         return array_print(A_PRIM);
     if (strcmp(cmd, "prim:clear") == 0)
         return array_clear(A_PRIM);
-    if (strcmp(cmd, "prim:init_sod") == 0)
-        return prim_init_sod();
+    if (strcmp(cmd, "prim:init_sod1") == 0)
+        return prim_init_sod1();
     if (strcmp(cmd, "prim:init_dwave") == 0)
         return prim_init_dwave();
     if (strcmp(cmd, "prim:from_cons") == 0)
