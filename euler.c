@@ -8,7 +8,6 @@
 #define MAX_COMMAND_LEN 1024
 #define MAX_DG_ORDER 11
 #define NUM_FIELDS 3
-#define ADIABATIC_GAMMA (5.0 / 3.0)
 #define min2(a, b) ((a) < (b) ? (a) : (b))
 #define max2(a, b) ((a) > (b) ? (a) : (b))
 #define min3(a, b, c) min2(a, min2(b, c))
@@ -19,6 +18,20 @@
         if (res)                                                               \
             return res;                                                        \
     } while (0)
+
+static FILE* terminal = NULL;
+static int num_zones = 20;
+static int order = 3;
+static int rk_order = 1;
+static double domain_x0 = 0.0;
+static double domain_x1 = 1.0;
+static double time_phys = 0.0;
+static double time_step = 0.0;
+static double rk_parameter = 0.0;
+static double tci_threshold = 0.001;
+static double cfl_parameter = 0.1;
+static double time_final = 0.1;
+static double adiabatic_gamma = 5.0 / 3.0;
 
 struct timespec timer_start()
 {
@@ -336,7 +349,7 @@ void hydro_prim_to_cons(double* prim, double* cons)
     double pre = prim[2];
     cons[0] = rho;
     cons[1] = rho * vel;
-    cons[2] = rho * vel * vel * 0.5 + pre / (ADIABATIC_GAMMA - 1.0);
+    cons[2] = rho * vel * vel * 0.5 + pre / (adiabatic_gamma - 1.0);
 }
 
 void hydro_cons_to_prim(double* cons, double* prim)
@@ -344,7 +357,7 @@ void hydro_cons_to_prim(double* cons, double* prim)
     double d = cons[0];
     double s = cons[1];
     double e = cons[2];
-    double pre = (e - 0.5 * s * s / d) * (ADIABATIC_GAMMA - 1.0);
+    double pre = (e - 0.5 * s * s / d) * (adiabatic_gamma - 1.0);
 
     if (d <= 0.0) {
         fprintf(stderr, "[error] negative density\n");
@@ -365,7 +378,7 @@ void hydro_flux(double* prim, double* flux)
     double rho = prim[0];
     double vel = prim[1];
     double pre = prim[2];
-    double e = rho * vel * vel * 0.5 + pre / (ADIABATIC_GAMMA - 1.0);
+    double e = rho * vel * vel * 0.5 + pre / (adiabatic_gamma - 1.0);
     flux[0] = rho * vel;
     flux[1] = rho * vel * vel + pre;
     flux[2] = (e + pre) * vel;
@@ -384,7 +397,7 @@ double hydro_sound_speed(double* prim)
 {
     double rho = prim[0];
     double pre = prim[2];
-    return sqrt(ADIABATIC_GAMMA * pre / rho);
+    return sqrt(adiabatic_gamma * pre / rho);
 }
 
 void hydro_riemann_hlle(
@@ -412,16 +425,7 @@ void hydro_riemann_hlle(
     }
 }
 
-static FILE* terminal = NULL;
-static int num_zones = 20;
-static int order = 3;
-static int rk_order = 1;
-static double domain_x0 = 0.0;
-static double domain_x1 = 1.0;
-static double time_phys = 0.0;
-static double time_step = 0.0;
-static double rk_parameter = 0.0;
-static double tci_threshold = 0.001;
+
 
 #define A_GRID 0
 #define A_WGTS 1
@@ -704,10 +708,15 @@ void prim_func_sod(double x, double* prim)
         prim[1] = 0.0;
         prim[2] = 1.0;
     } else {
-        prim[0] = 0.1;
+        prim[0] = 0.125;
         prim[1] = 0.0;
-        prim[2] = 0.125;
+        prim[2] = 0.1;
     }
+}
+
+int prim_init_sod()
+{
+    return prim_init(prim_func_sod);
 }
 
 void prim_func_dwave(double x, double* prim)
@@ -717,14 +726,124 @@ void prim_func_dwave(double x, double* prim)
     prim[2] = 1.0;
 }
 
-int prim_init_sod()
-{
-    return prim_init(prim_func_sod);
-}
-
 int prim_init_dwave()
 {
     return prim_init(prim_func_dwave);
+}
+
+// Riemann Tests from Table 4.1 of Toro (2009)
+void prim_func_test1(double x, double* prim)
+{
+    // run until t=0.25
+    if (x < 0.5) {
+        prim[0] = 1.0;
+        prim[1] = 0.0;
+        prim[2] = 1.0;
+    } else {
+        prim[0] = 0.125;
+        prim[1] = 0.0;
+        prim[2] = 0.1;
+    }
+}
+
+int prim_init_test1()
+{
+    return prim_init(prim_func_test1);
+}
+
+void prim_func_test2(double x, double* prim)
+{
+    // run until t=0.15
+    if (x < 0.5) {
+        prim[0] =  1.0;
+        prim[1] = -2.0;
+        prim[2] =  0.4;
+    } else {
+        prim[0] =  1.0;
+        prim[1] =  2.0;
+        prim[2] =  0.4;
+    }
+}
+
+int prim_init_test2()
+{
+    return prim_init(prim_func_test2);
+}
+
+void prim_func_test3(double x, double* prim)
+{
+    // run until t=0.012
+    if (x < 0.5) {
+        prim[0] =  1.0;
+        prim[1] =  0.0;
+        prim[2] =  1000.0;
+    } else {
+        prim[0] =  1.0;
+        prim[1] =  0.0;
+        prim[2] =  0.01;
+    }
+}
+
+int prim_init_test3()
+{
+    return prim_init(prim_func_test3);
+}
+
+void prim_func_test4(double x, double* prim)
+{
+    // run until t=0.035
+    if (x < 0.5) {
+        prim[0] =  1.0;
+        prim[1] =  0.0;
+        prim[2] =  0.01;
+    } else {
+        prim[0] =  1.0;
+        prim[1] =  0.0;
+        prim[2] =  100.0;
+    }
+}
+
+int prim_init_test4()
+{
+    return prim_init(prim_func_test4);
+}
+
+void prim_func_test5(double x, double* prim)
+{
+    // run until t=0.035
+    if (x < 0.5) {
+        prim[0] =  5.99924;
+        prim[1] =  19.5975;
+        prim[2] =  460.894;
+    } else {
+        prim[0] =  5.99242;
+        prim[1] = -6.19633;
+        prim[2] =  46.0950;
+    }
+}
+
+int prim_init_test5()
+{
+    return prim_init(prim_func_test5);
+}
+
+void prim_func_test_noh(double x, double* prim)
+{
+    // run until t=1.0 USE Gamma = 5/3
+    if (x < 0.5) {
+        prim[0] = 1.0;
+        prim[1] = 1.0;
+        prim[2] = 1.0e-6;
+    } else {
+        prim[0] = 1.0;
+        prim[1] = -1.0;
+        prim[2] = 1.0e-6;
+    }
+}
+
+int prim_init_test_noh()
+{
+    return prim_init(prim_func_test_noh);
 }
 
 int prim_from_cons()
@@ -1158,14 +1277,14 @@ int run()
     int iteration = 0;
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
     double wavespeed = 2.0;
-    time_step = dx / wavespeed * 0.02;
+    time_step = dx / wavespeed * cfl_parameter;
 
     TRY(grid_init());
-    TRY(prim_init_sod());
+    TRY(prim_init_test5());
     TRY(cons_from_prim());
     TRY(wgts_from_cons());
 
-    while (time_phys < 0.2) {
+    while (time_phys < time_final) {
         struct timespec start = timer_start();
 
         // 1. compute troubled zone indicator
@@ -1255,6 +1374,24 @@ int set_num_zones(int new_num_zones)
 int set_tci_threshold(double tci)
 {
     tci_threshold = tci;
+    return 0;
+}
+
+int set_cfl_parameter(double cfl)
+{
+    cfl_parameter = cfl;
+    return 0;
+}
+
+int set_time_final(double tmax)
+{
+    time_final = tmax;
+    return 0;
+}
+
+int set_adiabatic_gamma(double gamma)
+{
+    adiabatic_gamma = gamma;
     return 0;
 }
 
@@ -1401,6 +1538,12 @@ int load_command(const char* cmd)
         return set_num_zones(atoi(cmd + 10));
     if (strncmp(cmd, "tci=", 4) == 0)
         return set_tci_threshold(atof(cmd + 4));
+    if (strncmp(cmd, "cfl=", 4) == 0)
+        return set_cfl_parameter(atof(cmd + 4));
+    if (strncmp(cmd, "tmax=", 5) == 0)
+        return set_time_final(atof(cmd + 5));
+    if (strncmp(cmd, "gamma=", 6) == 0)
+        return set_adiabatic_gamma(atof(cmd + 6));
     if (strncmp(cmd, "terminal=", 9) == 0)
         return set_terminal(cmd + 9);
     if (strncmp(cmd, "load:", 5) == 0)
