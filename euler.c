@@ -20,7 +20,7 @@
     } while (0)
 
 static FILE* terminal = NULL;
-static int num_zones = 20;
+static int num_zones = 100;
 static int order = 3;
 static int rk_order = 3;
 static double domain_x0 = 0.0;
@@ -32,6 +32,7 @@ static double tci_threshold = 0.001;
 static double cfl_parameter = 0.1;
 static double time_final = 0.1;
 static double adiabatic_gamma = 5.0 / 3.0;
+int  boundary_condition = 0; // 0: "outflow" or 1: "periodic"
 
 struct timespec timer_start()
 {
@@ -1303,12 +1304,9 @@ int stencil_print()
 int run()
 {
     int iteration = 0;
-    double dx = (domain_x1 - domain_x0) / (num_zones - 2);
-    //double wavespeed = 2.0;
-    //time_step = dx / wavespeed * cfl_parameter;
 
     TRY(grid_init());
-    TRY(prim_init_sod1());
+    TRY(prim_init_dwave());
     TRY(cons_from_prim());
     TRY(wgts_from_cons());
 
@@ -1340,6 +1338,7 @@ int run()
             TRY(flux_from_prim());
             TRY(wgts_delta_from_dg());
             TRY(wgts_add_delta());
+            if (boundary_condition == 1) TRY(wgts_apply_bc());
             TRY(cons_from_wgts());
             TRY(prim_from_cons());
         }
@@ -1421,6 +1420,12 @@ int set_time_final(double tmax)
 int set_adiabatic_gamma(double gamma)
 {
     adiabatic_gamma = gamma;
+    return 0;
+}
+
+int set_boundary_condition(int bc_type)
+{
+    boundary_condition = bc_type;
     return 0;
 }
 
@@ -1573,6 +1578,8 @@ int load_command(const char* cmd)
         return set_time_final(atof(cmd + 5));
     if (strncmp(cmd, "gamma=", 6) == 0)
         return set_adiabatic_gamma(atof(cmd + 6));
+    if (strncmp(cmd, "bc_type=", 8) == 0)
+        return set_boundary_condition(atoi(cmd + 8));    
     if (strncmp(cmd, "terminal=", 9) == 0)
         return set_terminal(cmd + 9);
     if (strncmp(cmd, "load:", 5) == 0)
