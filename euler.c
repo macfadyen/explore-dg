@@ -917,7 +917,7 @@ int timestep_compute()
             timestep = min2(timestep, cfl_parameter * dx / max2(fabs(lam_m), fabs(lam_p)));
         }
     }
-    time_step = timestep;
+    time_step = min2(timestep, time_final - time_phys);
     return 0;
 }
 
@@ -1338,7 +1338,7 @@ int run()
             TRY(flux_from_prim());
             TRY(wgts_delta_from_dg());
             TRY(wgts_add_delta());
-            if (boundary_condition == 1) TRY(wgts_apply_bc());
+            if (boundary_condition > 0) TRY(wgts_apply_bc());
             TRY(cons_from_wgts());
             TRY(prim_from_cons());
         }
@@ -1348,7 +1348,7 @@ int run()
         double seconds = timer_end(start) * 1e-9;
         time_phys += time_step;
         iteration += 1;
-        printf("[%04d] t = %.4f dt = %.4e Mzps=%.3f\n", iteration, time_phys, time_step,
+        printf("[%04d] t = %.6f dt = %.4e Mzps=%.3f\n", iteration, time_phys, time_step,
             num_zones / seconds * 1e-6);
     }
     return 0;
