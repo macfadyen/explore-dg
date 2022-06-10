@@ -601,7 +601,7 @@ int array_print(int array)
         for (int r = 0; r < n[1]; ++r) {
             for (int q = 0; q < n[2]; ++q) {
                 fprintf(
-                    terminal, "%+.8f ", data[i * s[0] + r * s[1] + q * s[2]]);
+                    terminal, "%+.16f ", data[i * s[0] + r * s[1] + q * s[2]]);
             }
             fprintf(terminal, "\n");
         }
@@ -1348,7 +1348,7 @@ int run()
         double seconds = timer_end(start) * 1e-9;
         time_phys += time_step;
         iteration += 1;
-        printf("[%04d] t = %.6f dt = %.4e Mzps=%.3f\n", iteration, time_phys, time_step,
+        printf("[%04d] t = %.12f dt = %.4e Mzps=%.3f\n", iteration, time_phys, time_step,
             num_zones / seconds * 1e-6);
     }
     return 0;
