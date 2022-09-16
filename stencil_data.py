@@ -9,8 +9,10 @@ def generate(data, max_order):
         print("double gauss_quadrature_node(int order, int index)")
     if data == "gauss-weights":
         print("double gauss_quadrature_weight(int order, int index)")
-    if data == "lobatto-points":
-        print("double lobatto_point(int order, int index)")
+    if data == "lobatto-nodes":
+        print("double lobatto_node(int order, int index)")
+    if data == "lobatto-weights":
+        print("double lobatto_weight(int order, int index)")
 
     print("{")
     print("    switch (order) {")
@@ -19,22 +21,26 @@ def generate(data, max_order):
 
         # A reference for Lobatto quadrature nodes and weights:
         # https://keisan.casio.com/exec/system/1280801905#
+        p_n_minus_one = Legendre([0] * order + [1])
         lobatto = zeros(order + 1)
-        lobatto[1:-1] = Legendre([0] * order + [1]).deriv().roots()
+        lobatto[1:-1] = p_n_minus_one.deriv().roots()
         lobatto[+0] = -1.0
         lobatto[-1] = +1.0
         lobatto[abs(lobatto) < 1e-15] = 0.0
+        lobatto_weights = 2.0 / (order * (order + 1.0) * p_n_minus_one(lobatto) ** 2)
 
         print(f"    case {order}:")
         print("        switch (index) {")
 
-        for n in range(order + (data == "lobatto-points")):
+        for n in range(order + (data in ["lobatto-nodes", "lobatto-weights"])):
             if data == "gauss-nodes":
                 print(f"        case {n}: return {x[n]:+.14f};")
             if data == "gauss-weights":
                 print(f"        case {n}: return {w[n]:+.14f};")
-            if data == "lobatto-points":
+            if data == "lobatto-nodes":
                 print(f"        case {n}: return {lobatto[n]:+.14f}")
+            if data == "lobatto-weights":
+                print(f"        case {n}: return {lobatto_weights[n]:+.14f}")
 
         print("        }")
         print("        break;")
@@ -52,4 +58,6 @@ if __name__ == "__main__":
     print()
     generate("gauss-weights", args.max_order)
     print()
-    generate("lobatto-points", args.max_order)
+    generate("lobatto-nodes", args.max_order)
+    print()
+    generate("lobatto-weights", args.max_order)
