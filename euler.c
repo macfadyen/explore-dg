@@ -32,11 +32,11 @@ static double tci_threshold = 0.001;
 static double cfl_parameter = 0.1;
 static double adiabatic_gamma = 5.0 / 3.0;
 static double time_final = 0.1;
-int solver_type = 1; // 0: "LLF" 1: "HLLE" 2: "HHLC" or 3: "Exact"
+int solver_type = 1; // 0: "LLF" 1: "HLLE" 2: "HLLC" or 3: "Exact"
 int tci_type = 0; // 0: "Zrake" 1: "FuShu" 2: "minmod"
 int boundary_condition = 0; // 0: "outflow" or 1: "periodic" or 2:"reflecting"
 double floor_rho_p = 0.0; // floor on both rho and p
-int initial_condition = 0; // 0: "Sod1"
+int initial_condition = 2; // 0: "FS32 or easy sod"
 
 struct timespec timer_start()
 {
@@ -365,7 +365,7 @@ void hydro_cons_to_prim(double* cons, double* prim)
     double pre = (e - 0.5 * s * s / d) * (adiabatic_gamma - 1.0);
 
     // Floors needed for hard tests
-    if (floor_rho_p > 0.0) 
+    if (floor_rho_p > 0.0)
     {
         pre = max2(floor_rho_p, pre);
         d   = max2(floor_rho_p, d);
@@ -681,8 +681,8 @@ void array_shape(int array, int* shape)
 {
     int ni = num_zones;
     int nq = NUM_FIELDS;
-    int nr = order;
-    int nl = order;
+    int nr = order; // number of gauss points in a cell
+    int nl = order; // number of polynomials
 
     switch (array) {
     case A_GRID:
@@ -821,6 +821,8 @@ int array_print(int array)
     }
     return 0;
 }
+
+int set_terminal(const char* terminal_str);
 
 int trzn_print_to_file(int array)
 {
@@ -1924,9 +1926,12 @@ int run()
     TRY(grid_init());
     switch(initial_condition) 
     {
+        case 0 :
+            TRY(prim_init_sod1());
+            break;
         case 1 :
             TRY(prim_init_FS31());
-            break;        
+            break;
         case 2 :
             TRY(prim_init_FS32());
             break;
