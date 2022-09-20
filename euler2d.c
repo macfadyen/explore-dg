@@ -199,37 +199,37 @@ double gauss_quadrature_node(int order, int index)
     switch (order) {
     case 1:
         switch (index) {
-        case 0: return +0.00000000000000;
+        case 0: return +0.0000000000000;
         }
         break;
     case 2:
         switch (index) {
-        case 0: return -0.57735026918963;
-        case 1: return +0.57735026918963;
+        case 0: return -0.5773502691896;
+        case 1: return +0.5773502691896;
         }
         break;
     case 3:
         switch (index) {
-        case 0: return -0.77459666924148;
-        case 1: return +0.00000000000000;
-        case 2: return +0.77459666924148;
+        case 0: return -0.7745966692415;
+        case 1: return +0.0000000000000;
+        case 2: return +0.7745966692415;
         }
         break;
     case 4:
         switch (index) {
-        case 0: return -0.86113631159405;
-        case 1: return -0.33998104358486;
-        case 2: return +0.33998104358486;
-        case 3: return +0.86113631159405;
+        case 0: return -0.8611363115941;
+        case 1: return -0.3399810435849;
+        case 2: return +0.3399810435849;
+        case 3: return +0.8611363115941;
         }
         break;
     case 5:
         switch (index) {
-        case 0: return -0.90617984593866;
-        case 1: return -0.53846931010568;
-        case 2: return +0.00000000000000;
-        case 3: return +0.53846931010568;
-        case 4: return +0.90617984593866;
+        case 0: return -0.9061798459387;
+        case 1: return -0.5384693101057;
+        case 2: return +0.0000000000000;
+        case 3: return +0.5384693101057;
+        case 4: return +0.9061798459387;
         }
         break;
     }
@@ -241,37 +241,37 @@ double gauss_quadrature_weight(int order, int index)
     switch (order) {
     case 1:
         switch (index) {
-        case 0: return +2.00000000000000;
+        case 0: return +2.0000000000000;
         }
         break;
     case 2:
         switch (index) {
-        case 0: return +1.00000000000000;
-        case 1: return +1.00000000000000;
+        case 0: return +1.0000000000000;
+        case 1: return +1.0000000000000;
         }
         break;
     case 3:
         switch (index) {
-        case 0: return +0.55555555555556;
-        case 1: return +0.88888888888889;
-        case 2: return +0.55555555555556;
+        case 0: return +0.5555555555556;
+        case 1: return +0.8888888888889;
+        case 2: return +0.5555555555556;
         }
         break;
     case 4:
         switch (index) {
-        case 0: return +0.34785484513745;
-        case 1: return +0.65214515486255;
-        case 2: return +0.65214515486255;
-        case 3: return +0.34785484513745;
+        case 0: return +0.3478548451375;
+        case 1: return +0.6521451548625;
+        case 2: return +0.6521451548625;
+        case 3: return +0.3478548451375;
         }
         break;
     case 5:
         switch (index) {
-        case 0: return +0.23692688505619;
-        case 1: return +0.47862867049937;
-        case 2: return +0.56888888888889;
-        case 3: return +0.47862867049937;
-        case 4: return +0.23692688505619;
+        case 0: return +0.2369268850562;
+        case 1: return +0.4786286704994;
+        case 2: return +0.5688888888889;
+        case 3: return +0.4786286704994;
+        case 4: return +0.2369268850562;
         }
         break;
     }
@@ -283,42 +283,42 @@ double lobatto_node(int order, int index)
     switch (order) {
     case 1:
         switch (index) {
-        case 0: return -1.00000000000000;
-        case 1: return +1.00000000000000;
+        case 0: return -1.0000000000000;
+        case 1: return +1.0000000000000;
         }
         break;
     case 2:
         switch (index) {
-        case 0: return -1.00000000000000;
-        case 1: return +0.00000000000000;
-        case 2: return +1.00000000000000;
+        case 0: return -1.0000000000000;
+        case 1: return +0.0000000000000;
+        case 2: return +1.0000000000000;
         }
         break;
     case 3:
         switch (index) {
-        case 0: return -1.00000000000000;
-        case 1: return -0.44721359549996;
-        case 2: return +0.44721359549996;
-        case 3: return +1.00000000000000;
+        case 0: return -1.0000000000000;
+        case 1: return -0.4472135955000;
+        case 2: return +0.4472135955000;
+        case 3: return +1.0000000000000;
         }
         break;
     case 4:
         switch (index) {
-        case 0: return -1.00000000000000;
-        case 1: return -0.65465367070798;
-        case 2: return +0.00000000000000;
-        case 3: return +0.65465367070798;
-        case 4: return +1.00000000000000;
+        case 0: return -1.0000000000000;
+        case 1: return -0.6546536707080;
+        case 2: return +0.0000000000000;
+        case 3: return +0.6546536707080;
+        case 4: return +1.0000000000000;
         }
         break;
     case 5:
         switch (index) {
-        case 0: return -1.00000000000000;
-        case 1: return -0.76505532392946;
-        case 2: return -0.28523151648065;
-        case 3: return +0.28523151648064;
-        case 4: return +0.76505532392946;
-        case 5: return +1.00000000000000;
+        case 0: return -1.0000000000000;
+        case 1: return -0.7650553239295;
+        case 2: return -0.2852315164806;
+        case 3: return +0.2852315164806;
+        case 4: return +0.7650553239295;
+        case 5: return +1.0000000000000;
         }
         break;
     }
@@ -330,49 +330,47 @@ double lobatto_weight(int order, int index)
     switch (order) {
     case 1:
         switch (index) {
-        case 0: return +1.00000000000000;
-        case 1: return +1.00000000000000;
+        case 0: return +1.0000000000000;
+        case 1: return +1.0000000000000;
         }
         break;
     case 2:
         switch (index) {
-        case 0: return +0.33333333333333;
-        case 1: return +1.33333333333333;
-        case 2: return +0.33333333333333;
+        case 0: return +0.3333333333333;
+        case 1: return +1.3333333333333;
+        case 2: return +0.3333333333333;
         }
         break;
     case 3:
         switch (index) {
-        case 0: return +0.16666666666667;
-        case 1: return +0.83333333333333;
-        case 2: return +0.83333333333333;
-        case 3: return +0.16666666666667;
+        case 0: return +0.1666666666667;
+        case 1: return +0.8333333333333;
+        case 2: return +0.8333333333333;
+        case 3: return +0.1666666666667;
         }
         break;
     case 4:
         switch (index) {
-        case 0: return +0.10000000000000;
-        case 1: return +0.54444444444444;
-        case 2: return +0.71111111111111;
-        case 3: return +0.54444444444444;
-        case 4: return +0.10000000000000;
+        case 0: return +0.1000000000000;
+        case 1: return +0.5444444444444;
+        case 2: return +0.7111111111111;
+        case 3: return +0.5444444444444;
+        case 4: return +0.1000000000000;
         }
         break;
     case 5:
         switch (index) {
-        case 0: return +0.06666666666667;
-        case 1: return +0.37847495629785;
-        case 2: return +0.55485837703549;
-        case 3: return +0.55485837703549;
-        case 4: return +0.37847495629785;
-        case 5: return +0.06666666666667;
+        case 0: return +0.0666666666667;
+        case 1: return +0.3784749562978;
+        case 2: return +0.5548583770355;
+        case 3: return +0.5548583770355;
+        case 4: return +0.3784749562978;
+        case 5: return +0.0666666666667;
         }
         break;
     }
     return 0.0;
 }
-
-
 
 int main()
 {

@@ -34,13 +34,13 @@ def generate(data, max_order):
 
         for n in range(order + (data in ["lobatto-nodes", "lobatto-weights"])):
             if data == "gauss-nodes":
-                print(f"        case {n}: return {x[n]:+.14f};")
+                print(f"        case {n}: return {x[n]:+.13f};")
             if data == "gauss-weights":
-                print(f"        case {n}: return {w[n]:+.14f};")
+                print(f"        case {n}: return {w[n]:+.13f};")
             if data == "lobatto-nodes":
-                print(f"        case {n}: return {lobatto[n]:+.14f};")
+                print(f"        case {n}: return {lobatto[n]:+.13f};")
             if data == "lobatto-weights":
-                print(f"        case {n}: return {lobatto_weights[n]:+.14f};")
+                print(f"        case {n}: return {lobatto_weights[n]:+.13f};")
 
         print("        }")
         print("        break;")
