@@ -14,10 +14,10 @@
 #define MAX_COMMAND_LEN 1024
 #define MAX_DG_ORDER 11
 #define NUM_FIELDS 5
-#define min2(a, b) ((a) < (b) ? (a) : (b))
-#define max2(a, b) ((a) > (b) ? (a) : (b))
-#define min3(a, b, c) min2(a, min2(b, c))
-#define max3(a, b, c) max2(a, max2(b, c))
+#define MIN2(a, b) ((a) < (b) ? (a) : (b))
+#define MAX2(a, b) ((a) > (b) ? (a) : (b))
+#define MIN3(a, b, c) min2(a, min2(b, c))
+#define MAX3(a, b, c) max2(a, max2(b, c))
 #define TRY(n)                                                                 \
     do {                                                                       \
         int res = n;                                                           \
@@ -103,23 +103,23 @@ struct Array7 array7_make(int array)
 const char* array_name(int array)
 {
     switch (array) {
-    case A_GAUSS_GRID: return "GRID";
-    case A_LOBATTO_GRID: return "GRID";
+    case A_GAUSS_GRID: return "GAUSS_GRID";
+    case A_LOBATTO_GRID: return "LOBATTO_GRID";
     case A_WGTS: return "WGTS";
-    case A_WGTS_CACHE: return "CACHE";
-    case A_WGTS_DELTA: return "DELTA";
+    case A_WGTS_CACHE: return "WGTS_CACHE";
+    case A_WGTS_DELTA: return "WGTS_DELTA";
     case A_PRIM: return "PRIM";
     case A_CONS: return "CONS";
-    case A_CONS_DELTA: return "DELTA";
-    case A_CONS_SRF_I: return "SRF_I";
-    case A_CONS_SRF_J: return "SRF_J";
-    case A_CONS_SRF_K: return "SRF_K";
+    case A_CONS_DELTA: return "CONS_DELTA";
+    case A_CONS_SRF_I: return "CONS_SRF_I";
+    case A_CONS_SRF_J: return "CONS_SRF_J";
+    case A_CONS_SRF_K: return "CONS_SRF_K";
     case A_FLUX_I: return "FLUX_I";
     case A_FLUX_J: return "FLUX_J";
     case A_FLUX_K: return "FLUX_K";
-    case A_FLUX_GOD_I: return "GOD_I";
-    case A_FLUX_GOD_J: return "GOD_J";
-    case A_FLUX_GOD_K: return "GOD_K";
+    case A_FLUX_GOD_I: return "FLUX_GOD_I";
+    case A_FLUX_GOD_J: return "FLUX_GOD_J";
+    case A_FLUX_GOD_K: return "FLUX_GOD_K";
     case A_TRZN: return "TRZN";
     }
     assert(0);
@@ -274,65 +274,30 @@ int array_clear(int array)
     return 0;
 }
 
+int array_bounds_error(int array, int i, int j, int k, int r, int s, int t, int q)
+{
+    printf("out-of-bounds at index (%d %d %d %d %d %d %d) on array %s\n",
+        i, j, k, r, s, t, q, array_name(array));
+    exit(1);
+    return 0;
+}
+
 #define GET7(a, i, j, k, r, s, t, q) \
- a.ptr[(( \
+a.ptr[(( \
     (i < 0 || i >= a.shape[0]) || \
     (j < 0 || j >= a.shape[1]) || \
     (k < 0 || k >= a.shape[2]) || \
     (r < 0 || r >= a.shape[3]) || \
     (s < 0 || s >= a.shape[4]) || \
     (t < 0 || t >= a.shape[5]) || \
-    (q < 0 || q >= a.shape[6])) && bounds_error_set(a.which, i, j, k, r, s, t, q)) \
- + (i) * a.strides[0] \
- + (j) * a.strides[1] \
- + (k) * a.strides[2] \
- + (r) * a.strides[3] \
- + (s) * a.strides[4] \
- + (t) * a.strides[5] \
- + (q) * a.strides[6]]
-
-
-
-
-// ============================================================================
-// Error reporting for out-of-bounds index.
-// ============================================================================
-static int BOUNDS_ERROR_ARRAY = 0;
-static int BOUNDS_ERROR_INDEX[7];
-
-static int bounds_error_set(int array, int i, int j, int k, int r, int s, int t, int q)
-{
-    BOUNDS_ERROR_ARRAY = array;
-    BOUNDS_ERROR_INDEX[0] = i;
-    BOUNDS_ERROR_INDEX[1] = j;
-    BOUNDS_ERROR_INDEX[2] = k;
-    BOUNDS_ERROR_INDEX[3] = r;
-    BOUNDS_ERROR_INDEX[4] = s;
-    BOUNDS_ERROR_INDEX[5] = t;
-    BOUNDS_ERROR_INDEX[6] = q;
-    return 0;
-}
-
-static int bounds_error_report()
-{
-    if (BOUNDS_ERROR_ARRAY == 0)
-    {
-        return 0;
-    }
-    else
-    {
-        printf("out-of-bounds at index (%d %d %d %d %d %d %d) on array %s\n",
-            BOUNDS_ERROR_INDEX[0],
-            BOUNDS_ERROR_INDEX[1],
-            BOUNDS_ERROR_INDEX[2],
-            BOUNDS_ERROR_INDEX[3],
-            BOUNDS_ERROR_INDEX[4],
-            BOUNDS_ERROR_INDEX[5],
-            BOUNDS_ERROR_INDEX[6],
-            array_name(BOUNDS_ERROR_ARRAY));
-        return 1;
-    }
-}
+    (q < 0 || q >= a.shape[6])) && array_bounds_error(a.which, i, j, k, r, s, t, q)) \
++ (i) * a.strides[0] \
++ (j) * a.strides[1] \
++ (k) * a.strides[2] \
++ (r) * a.strides[3] \
++ (s) * a.strides[4] \
++ (t) * a.strides[5] \
++ (q) * a.strides[6]]
 
 
 
@@ -523,9 +488,5 @@ int main()
     struct Array7 a = array_require_alloc(A_CONS);
     double x = GET7(a, 0, 0, 0, 0, 0, 0, 5);
 
-    if (bounds_error_report())
-    {
-        exit(1);
-    }
     return 0;
 }
