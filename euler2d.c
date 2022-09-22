@@ -31,10 +31,18 @@
 // ============================================================================
 // Runtime configuration
 // ============================================================================
+static FILE* terminal = NULL;
+static FILE* binary_output = NULL;
+static int dg_order = 3;
 static int num_zones_i = 10;
 static int num_zones_j = 10;
-static int num_zones_k = 10;
-static int dg_order = 3;
+static int num_zones_k = 1;
+static double domain_x0 = 0.0;
+static double domain_x1 = 1.0;
+static double domain_y0 = 0.0;
+static double domain_y1 = 1.0;
+static double domain_z0 = 0.0;
+static double domain_z1 = 1.0;
 
 
 
@@ -42,10 +50,10 @@ static int dg_order = 3;
 // ============================================================================
 // 7 dimensional array data structure and API.
 // ============================================================================
-struct Array7
+struct Array
 {
     double *ptr;
-    int which;
+    int array_num;
     int shape[7];
     int strides[7];
 };
@@ -75,34 +83,35 @@ static double* global_array[A_NUM_ARRAYS]; // C: elements are initialized to NUL
 
 // Function prototypes
 // --------------------------------------------------------
-struct Array7 array7_make(int array);
-const char* array_name(int array);
-void array_shape(int array, int* shape);
-size_t array_len(int array);
-struct Array7 array_require_alloc(int array);
-int array_clear(int array);
+struct Array array_make(int array_num);
+const char* array_name(int array_num);
+void array_shape(int array_num, int* shape);
+size_t array_len(int array_num);
+struct Array array_require_alloc(int array_num);
+int array_clear(int array_num);
 
 // Function implementations
 // --------------------------------------------------------
-struct Array7 array7_make(int array)
+struct Array array_make(int array_num)
 {
-    assert(global_array[array]);
-    struct Array7 a;
-    array_shape(array, a.shape);
-    a.which = array;
-    a.ptr = global_array[array];
+    assert(global_array[array_num]);
+    struct Array a;
+    array_shape(array_num, a.shape);
+    a.array_num = array_num;
+    a.ptr = global_array[array_num];
     a.strides[6] = 1;
     a.strides[5] = a.strides[6] * a.shape[6];
     a.strides[4] = a.strides[5] * a.shape[5];
     a.strides[3] = a.strides[4] * a.shape[4];
     a.strides[2] = a.strides[3] * a.shape[3];
     a.strides[1] = a.strides[2] * a.shape[2];
+    a.strides[0] = a.strides[1] * a.shape[1];
     return a;
 }
 
-const char* array_name(int array)
+const char* array_name(int array_num)
 {
-    switch (array) {
+    switch (array_num) {
     case A_GAUSS_GRID: return "GAUSS_GRID";
     case A_LOBATTO_GRID: return "LOBATTO_GRID";
     case A_WGTS: return "WGTS";
@@ -127,6 +136,10 @@ const char* array_name(int array)
 
 void array_shape(int array, int* shape)
 {
+    int dg_r = num_zones_i > 1 ? dg_order : 1;
+    int dg_s = num_zones_j > 1 ? dg_order : 1;
+    int dg_t = num_zones_k > 1 ? dg_order : 1;
+
     switch (array) {
 
     // grid points
@@ -135,18 +148,18 @@ void array_shape(int array, int* shape)
         shape[0] = num_zones_i;
         shape[1] = num_zones_j;
         shape[2] = num_zones_k;
-        shape[3] = dg_order;
-        shape[4] = dg_order;
-        shape[5] = dg_order;
+        shape[3] = dg_r;
+        shape[4] = dg_s;
+        shape[5] = dg_t;
         shape[6] = 3; // (x, y, z) coordinates of Gauss point
         return;
     case A_LOBATTO_GRID:
         shape[0] = num_zones_i;
         shape[1] = num_zones_j;
         shape[2] = num_zones_k;
-        shape[3] = dg_order + 1;
-        shape[4] = dg_order + 1;
-        shape[5] = dg_order + 1;
+        shape[3] = dg_r + 1;
+        shape[4] = dg_s + 1;
+        shape[5] = dg_t + 1;
         shape[6] = 3; // (x, y, z) coordinates of Lobatto points
         return;
 
@@ -159,9 +172,9 @@ void array_shape(int array, int* shape)
         shape[1] = num_zones_j;
         shape[2] = num_zones_k;
         shape[3] = NUM_FIELDS;
-        shape[4] = dg_order;
-        shape[5] = dg_order;
-        shape[6] = dg_order;
+        shape[3] = dg_r;
+        shape[4] = dg_s;
+        shape[5] = dg_t;
         return;
 
     // hydrodynamics fields
@@ -172,105 +185,188 @@ void array_shape(int array, int* shape)
         shape[0] = num_zones_i;
         shape[1] = num_zones_j;
         shape[2] = num_zones_k;
-        shape[3] = dg_order;
-        shape[4] = dg_order;
-        shape[5] = dg_order;
+        shape[3] = dg_r;
+        shape[4] = dg_s;
+        shape[5] = dg_t;
         shape[6] = NUM_FIELDS;
         return;
 
     // surface conserved states
     // ----------------------------------------------------
     case A_CONS_SRF_I:
-        shape[0] = num_zones_i + 1;
-        shape[1] = num_zones_j;
-        shape[2] = num_zones_k;
-        shape[3] = 2;
-        shape[4] = dg_order;
-        shape[5] = dg_order;
-        shape[6] = NUM_FIELDS;
+        if (num_zones_i > 1) {
+            shape[0] = num_zones_i + 1;
+            shape[1] = num_zones_j;
+            shape[2] = num_zones_k;
+            shape[3] = 2;
+            shape[4] = dg_s;
+            shape[5] = dg_t;
+            shape[6] = NUM_FIELDS;
+        }
+        else {
+            shape[0] = 0;
+            shape[1] = 0;
+            shape[2] = 0;
+            shape[3] = 0;
+            shape[4] = 0;
+            shape[5] = 0;
+            shape[6] = 0;
+        }
         return;
+
     case A_CONS_SRF_J:
-        shape[0] = num_zones_i;
-        shape[1] = num_zones_j + 1;
-        shape[2] = num_zones_k;
-        shape[3] = dg_order;
-        shape[4] = 2;
-        shape[5] = dg_order;
-        shape[6] = NUM_FIELDS;
+        if (num_zones_j > 1) {
+            shape[0] = num_zones_i;
+            shape[1] = num_zones_j + 1;
+            shape[2] = num_zones_k;
+            shape[3] = dg_r;
+            shape[4] = 2;
+            shape[5] = dg_t;
+            shape[6] = NUM_FIELDS;
+        }
+        else {
+            shape[0] = 0;
+            shape[1] = 0;
+            shape[2] = 0;
+            shape[3] = 0;
+            shape[4] = 0;
+            shape[5] = 0;
+            shape[6] = 0;
+        }
         return;
+
     case A_CONS_SRF_K:
-        shape[0] = num_zones_i;
-        shape[1] = num_zones_j;
-        shape[2] = num_zones_k + 1;
-        shape[3] = dg_order;
-        shape[4] = dg_order;
-        shape[5] = 2;
-        shape[6] = NUM_FIELDS;
+        if (num_zones_k > 1) {
+            shape[0] = num_zones_i;
+            shape[1] = num_zones_j;
+            shape[2] = num_zones_k + 1;
+            shape[3] = dg_r;
+            shape[4] = dg_s;
+            shape[5] = 2;
+            shape[6] = NUM_FIELDS;
+        }
+        else {
+            shape[0] = 0;
+            shape[1] = 0;
+            shape[2] = 0;
+            shape[3] = 0;
+            shape[4] = 0;
+            shape[5] = 0;
+            shape[6] = 0;
+        }
         return;
 
     // fluxes
     // ----------------------------------------------------
     case A_FLUX_GOD_I:
     case A_FLUX_I:
-        shape[0] = num_zones_i + 1;
-        shape[1] = num_zones_j;
-        shape[2] = num_zones_k;
-        shape[3] = 1;
-        shape[4] = dg_order;
-        shape[5] = dg_order;
-        shape[6] = NUM_FIELDS;
+        if (num_zones_i > 1) {
+            shape[0] = num_zones_i + 1;
+            shape[1] = num_zones_j;
+            shape[2] = num_zones_k;
+            shape[3] = 1;
+            shape[4] = dg_s;
+            shape[5] = dg_t;
+            shape[6] = NUM_FIELDS;
+        }
+        else {
+            shape[0] = 0;
+            shape[1] = 0;
+            shape[2] = 0;
+            shape[3] = 0;
+            shape[4] = 0;
+            shape[5] = 0;
+            shape[6] = 0;
+        }
         return;
+
     case A_FLUX_GOD_J:
     case A_FLUX_J:
-        shape[0] = num_zones_i;
-        shape[1] = num_zones_j + 1;
-        shape[2] = num_zones_k;
-        shape[3] = dg_order;
-        shape[4] = 1;
-        shape[5] = dg_order;
-        shape[6] = NUM_FIELDS;
+        if (num_zones_j > 1) {
+            shape[0] = num_zones_i;
+            shape[1] = num_zones_j + 1;
+            shape[2] = num_zones_k;
+            shape[3] = dg_r;
+            shape[4] = 1;
+            shape[5] = dg_t;
+            shape[6] = NUM_FIELDS;
+        }
+        else {
+            shape[0] = 0;
+            shape[1] = 0;
+            shape[2] = 0;
+            shape[3] = 0;
+            shape[4] = 0;
+            shape[5] = 0;
+            shape[6] = 0;
+        }
         return;
+
     case A_FLUX_GOD_K:
     case A_FLUX_K:
-        shape[0] = num_zones_i;
-        shape[1] = num_zones_j;
-        shape[2] = num_zones_k + 1;
-        shape[3] = dg_order;
-        shape[4] = dg_order;
-        shape[5] = 1;
-        shape[6] = NUM_FIELDS;
+        if (num_zones_k > 1) {
+            shape[0] = num_zones_i;
+            shape[1] = num_zones_j;
+            shape[2] = num_zones_k + 1;
+            shape[3] = dg_r;
+            shape[4] = dg_s;
+            shape[5] = 2;
+            shape[6] = NUM_FIELDS;
+        }
+        else {
+            shape[0] = 0;
+            shape[1] = 0;
+            shape[2] = 0;
+            shape[3] = 0;
+            shape[4] = 0;
+            shape[5] = 0;
+            shape[6] = 0;
+        }
         return;
     }
     assert(0);
 }
 
-size_t array_len(int array)
+size_t array_len(int array_num)
 {
     int n[7];
-    array_shape(array, n);
+    array_shape(array_num, n);
     return n[0] * n[1] * n[2] * n[3] * n[4] * n[5] * n[6];
 }
 
-struct Array7 array_require_alloc(int array)
+struct Array array_require_alloc(int array_num)
 {
-    double** ptr = &global_array[array];
+    double* ptr = global_array[array_num];
 
-    if (*ptr == NULL) {
-        size_t elem = array_len(array);
+    if (ptr == NULL) {
+        size_t elem = array_len(array_num);
         size_t size = elem * sizeof(double);
-        *ptr = malloc(size);
+        ptr = malloc(size);
 
         for (size_t a = 0; a < elem; ++a) {
-            (*ptr)[elem] = 0.0;
+            ptr[elem] = 0.0;
         }
+        global_array[array_num] = ptr;
     }
-    return array7_make(array);
+    return array_make(array_num);
 }
 
-int array_clear(int array)
+int array_clear(int array_num)
 {
-    free(global_array[array]);
-    global_array[array] = NULL;
+    free(global_array[array_num]);
+    global_array[array_num] = NULL;
+    return 0;
+}
+
+int array_write(int array_num)
+{
+    struct Array a = array_make(array_num);
+
+    if (a.ptr == NULL || binary_output == NULL) {
+        return 1;
+    }
+
+    fwrite(a.ptr, sizeof(double), array_len(array_num), binary_output);
     return 0;
 }
 
@@ -283,14 +379,15 @@ int array_bounds_error(int array, int i, int j, int k, int r, int s, int t, int 
 }
 
 #define GET7(a, i, j, k, r, s, t, q) \
-a.ptr[(( \
-    (i < 0 || i >= a.shape[0]) || \
-    (j < 0 || j >= a.shape[1]) || \
-    (k < 0 || k >= a.shape[2]) || \
-    (r < 0 || r >= a.shape[3]) || \
-    (s < 0 || s >= a.shape[4]) || \
-    (t < 0 || t >= a.shape[5]) || \
-    (q < 0 || q >= a.shape[6])) && array_bounds_error(a.which, i, j, k, r, s, t, q)) \
+a.ptr[ \
+  (( \
+  (i < 0 || i >= a.shape[0]) || \
+  (j < 0 || j >= a.shape[1]) || \
+  (k < 0 || k >= a.shape[2]) || \
+  (r < 0 || r >= a.shape[3]) || \
+  (s < 0 || s >= a.shape[4]) || \
+  (t < 0 || t >= a.shape[5]) || \
+  (q < 0 || q >= a.shape[6])) && array_bounds_error(a.array_num, i, j, k, r, s, t, q)) \
 + (i) * a.strides[0] \
 + (j) * a.strides[1] \
 + (k) * a.strides[2] \
@@ -298,6 +395,52 @@ a.ptr[(( \
 + (s) * a.strides[4] \
 + (t) * a.strides[5] \
 + (q) * a.strides[6]]
+
+#define FOR_IJKRST(ni, nj, nk, nr, ns, nt) \
+for (int i = 0; i < ni; ++i) \
+for (int j = 0; j < nj; ++j) \
+for (int k = 0; k < nk; ++k) \
+for (int r = 0; r < nr; ++r) \
+for (int s = 0; s < ns; ++s) \
+for (int t = 0; t < nt; ++t)
+
+
+
+
+// ============================================================================
+// User interaction
+// ============================================================================
+int set_terminal(const char* terminal_str)
+{
+    FILE* new_terminal = NULL;
+
+    if (terminal != NULL && terminal != stdout) {
+        fclose(terminal);
+    }
+    if (strcmp(terminal_str, "stdout") == 0) {
+        terminal = stdout;
+    } else if ((new_terminal = fopen(terminal_str, "w")) == NULL) {
+        fprintf(stderr, "[error] unable to open terminal file %s\n", terminal_str);
+        return 1;
+    }
+    terminal = new_terminal;
+    return 0;
+}
+
+int set_binary_output(const char* file_str)
+{
+    FILE* new_binary_output = NULL;
+
+    if (binary_output != NULL) {
+        fclose(binary_output);
+    }
+    if ((new_binary_output = fopen(file_str, "wb")) == NULL) {
+        fprintf(stderr, "[error] unable to open binary output file %s\n", file_str);
+        return 1;
+    }
+    binary_output = new_binary_output;
+    return 0;
+}
 
 
 
@@ -483,10 +626,95 @@ double lobatto_weight(int order, int index)
     return 0.0;
 }
 
+
+
+
+// ============================================================================
+// Grid functions
+// ============================================================================
+int grid_gauss_init()
+{
+    printf("[grid_gauss_init]\n");
+
+    struct Array grid = array_require_alloc(A_GAUSS_GRID);
+    int ngi = num_zones_i > 1 ? 1 : 0;
+    int ngj = num_zones_j > 1 ? 1 : 0;
+    int ngk = num_zones_k > 1 ? 1 : 0;
+    int dg_r = num_zones_i > 1 ? dg_order : 1;
+    int dg_s = num_zones_j > 1 ? dg_order : 1;
+    int dg_t = num_zones_k > 1 ? dg_order : 1;
+    double dx = (domain_x1 - domain_x0) / (num_zones_i - 2 * ngi);
+    double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ngj);
+    double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ngk);
+
+    FOR_IJKRST(num_zones_i, num_zones_j, num_zones_k, dg_r, dg_s, dg_t)
+    {
+        double xsi_x = gauss_quadrature_node(dg_r, r);
+        double xsi_y = gauss_quadrature_node(dg_s, s);
+        double xsi_z = gauss_quadrature_node(dg_t, t);
+        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ngi + 0.5 * (1.0 + xsi_x));
+        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ngj + 0.5 * (1.0 + xsi_y));
+        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ngk + 0.5 * (1.0 + xsi_z));
+    }
+    return 0;
+}
+
+int grid_lobatto_init()
+{
+    printf("[grid_lobatto_init]\n");
+
+    struct Array grid = array_require_alloc(A_LOBATTO_GRID);
+    int ngi = num_zones_i > 1 ? 1 : 0;
+    int ngj = num_zones_j > 1 ? 1 : 0;
+    int ngk = num_zones_k > 1 ? 1 : 0;
+    int dg_r = num_zones_i > 1 ? dg_order : 1;
+    int dg_s = num_zones_j > 1 ? dg_order : 1;
+    int dg_t = num_zones_k > 1 ? dg_order : 1;
+    double dx = (domain_x1 - domain_x0) / (num_zones_i - 2 * ngi);
+    double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ngj);
+    double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ngk);
+
+    FOR_IJKRST(num_zones_i, num_zones_j, num_zones_k, dg_r + 1, dg_s + 1, dg_t + 1)
+    {
+        double xsi_x = lobatto_node(dg_order, r);
+        double xsi_y = lobatto_node(dg_order, s);
+        double xsi_z = lobatto_node(dg_order, t);
+        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ngi + 0.5 * (1.0 + xsi_x));
+        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ngj + 0.5 * (1.0 + xsi_y));
+        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ngk + 0.5 * (1.0 + xsi_z));
+    }
+    return 0;
+}
+
+int prim_init()
+{
+    struct Array grid = array_make(A_GAUSS_GRID);
+
+    // LEAVING OFF HERE
+
+    FOR_IJKRST(num_zones_i, num_zones_j, num_zones_k, dg_order, dg_order, dg_order)
+    {
+
+    }
+    return 0;
+}
+
+
+
+
 int main()
 {
-    struct Array7 a = array_require_alloc(A_CONS);
-    double x = GET7(a, 0, 0, 0, 0, 0, 0, 5);
+    set_terminal("stdout");
 
+    grid_gauss_init();
+    grid_lobatto_init();
+
+    set_binary_output("gauss.bin");
+    array_write(A_GAUSS_GRID);
+
+    set_binary_output("lobatto.bin");
+    array_write(A_LOBATTO_GRID);
+
+    printf("[done]\n");
     return 0;
 }
