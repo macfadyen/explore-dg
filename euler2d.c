@@ -16,8 +16,8 @@
 #define NUM_FIELDS 5
 #define MIN2(a, b) ((a) < (b) ? (a) : (b))
 #define MAX2(a, b) ((a) > (b) ? (a) : (b))
-#define MIN3(a, b, c) min2(a, min2(b, c))
-#define MAX3(a, b, c) max2(a, max2(b, c))
+#define MIN3(a, b, c) MIN2(a, MIN2(b, c))
+#define MAX3(a, b, c) MAX2(a, MAX2(b, c))
 #define TRY(n)                                                                 \
     do {                                                                       \
         int res = n;                                                           \
