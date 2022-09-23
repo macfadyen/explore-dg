@@ -8,16 +8,16 @@
 
 
 
-// ============================================================================
+// =============================================================================
 // Utility macros
-// ============================================================================
+// =============================================================================
 #define MAX_COMMAND_LEN 1024
-#define MAX_DG_ORDER 11
-#define NUM_FIELDS 5
-#define MIN2(a, b) ((a) < (b) ? (a) : (b))
-#define MAX2(a, b) ((a) > (b) ? (a) : (b))
-#define MIN3(a, b, c) MIN2(a, MIN2(b, c))
-#define MAX3(a, b, c) MAX2(a, MAX2(b, c))
+#define MAX_DG_ORDER    11
+#define NUM_FIELDS      5
+#define MIN2(a, b)      ((a) < (b) ? (a) : (b))
+#define MAX2(a, b)      ((a) > (b) ? (a) : (b))
+#define MIN3(a, b, c)   MIN2(a, MIN2(b, c))
+#define MAX3(a, b, c)   MAX2(a, MAX2(b, c))
 #define TRY(n)                                                                 \
     do {                                                                       \
         int res = n;                                                           \
@@ -28,11 +28,11 @@
 
 
 
-// ============================================================================
+// =============================================================================
 // Runtime configuration
-// ============================================================================
-static FILE* terminal = NULL;
-static FILE* binary_output = NULL;
+// =============================================================================
+static FILE *terminal = NULL;
+static FILE *binary_output = NULL;
 static int dg_order = 3;
 static int num_zones_i = 10;
 static int num_zones_j = 10;
@@ -47,11 +47,10 @@ static double domain_z1 = 1.0;
 
 
 
-// ============================================================================
+// =============================================================================
 // 7 dimensional array data structure and API.
-// ============================================================================
-struct Array
-{
+// =============================================================================
+struct Array {
     double *ptr;
     int array_num;
     int shape[7];
@@ -84,7 +83,7 @@ struct Array
 //
 // Note: since this is a static array, the pointers are initialized to NULL per
 // C standard.
-static double* global_array[A_NUM_ARRAYS];
+static double *global_array[A_NUM_ARRAYS];
 
 // Array API
 // --------------------------------------------------------
@@ -98,7 +97,7 @@ struct Array array_make(int array_num);
 
 // Return the name of the array for the given array number.
 //
-const char* array_name(int array_num);
+const char *array_name(int array_num);
 
 // Return the 7-component shape of the array with the given array number.
 //
@@ -116,7 +115,7 @@ size_t array_len(int array_num);
 struct Array array_require_alloc(int array_num);
 
 // Deallocate an array.
-// 
+//
 int array_clear(int array_num);
 
 // Write an array to the current binary output stream.
@@ -127,7 +126,8 @@ int array_write(int array_num);
 //
 // This function writes a message to stderr and exits the program
 //
-int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t, int q);
+int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t,
+                            int q);
 
 // Function implementations
 // --------------------------------------------------------
@@ -148,7 +148,7 @@ struct Array array_make(int array_num)
     return a;
 }
 
-const char* array_name(int array_num)
+const char *array_name(int array_num)
 {
     switch (array_num) {
     case A_GAUSS_GRID: return "GAUSS_GRID";
@@ -180,7 +180,6 @@ void array_shape(int array, int shape[7])
     int dg_t = num_zones_k > 1 ? dg_order : 1;
 
     switch (array) {
-
     // grid points
     // ----------------------------------------------------
     case A_GAUSS_GRID:
@@ -241,8 +240,7 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        }
-        else {
+        } else {
             shape[0] = 0;
             shape[1] = 0;
             shape[2] = 0;
@@ -262,8 +260,7 @@ void array_shape(int array, int shape[7])
             shape[4] = 2;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        }
-        else {
+        } else {
             shape[0] = 0;
             shape[1] = 0;
             shape[2] = 0;
@@ -283,8 +280,7 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = 2;
             shape[6] = NUM_FIELDS;
-        }
-        else {
+        } else {
             shape[0] = 0;
             shape[1] = 0;
             shape[2] = 0;
@@ -307,8 +303,7 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        }
-        else {
+        } else {
             shape[0] = 0;
             shape[1] = 0;
             shape[2] = 0;
@@ -329,8 +324,7 @@ void array_shape(int array, int shape[7])
             shape[4] = 1;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        }
-        else {
+        } else {
             shape[0] = 0;
             shape[1] = 0;
             shape[2] = 0;
@@ -351,8 +345,7 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = 1;
             shape[6] = NUM_FIELDS;
-        }
-        else {
+        } else {
             shape[0] = 0;
             shape[1] = 0;
             shape[2] = 0;
@@ -375,7 +368,7 @@ size_t array_len(int array_num)
 
 struct Array array_require_alloc(int array_num)
 {
-    double* ptr = global_array[array_num];
+    double *ptr = global_array[array_num];
 
     if (ptr == NULL) {
         size_t elem = array_len(array_num);
@@ -410,52 +403,44 @@ int array_write(int array_num)
     return 0;
 }
 
-int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t, int q)
+int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t,
+                            int q)
 {
-    fprintf(stderr, "out-of-bounds at index (%d %d %d %d %d %d %d) on array%s\n",
-        i, j, k, r, s, t, q, array_name(array));
+    fprintf(stderr,
+            "out-of-bounds at index (%d %d %d %d %d %d %d) on array%s\n", i, j,
+            k, r, s, t, q, array_name(array));
     exit(1);
     return 0;
 }
 
-#define GET7(a, i, j, k, r, s, t, q) \
-a.ptr[ \
-  (( \
-  (i < 0 || i >= a.shape[0]) || \
-  (j < 0 || j >= a.shape[1]) || \
-  (k < 0 || k >= a.shape[2]) || \
-  (r < 0 || r >= a.shape[3]) || \
-  (s < 0 || s >= a.shape[4]) || \
-  (t < 0 || t >= a.shape[5]) || \
-  (q < 0 || q >= a.shape[6])) && array_bounds_error_exit(a.array_num, i, j, k, r, s, t, q)) \
-+ (i) * a.strides[0] \
-+ (j) * a.strides[1] \
-+ (k) * a.strides[2] \
-+ (r) * a.strides[3] \
-+ (s) * a.strides[4] \
-+ (t) * a.strides[5] \
-+ (q) * a.strides[6]]
+#define GET7(a, i, j, k, r, s, t, q)                                           \
+    a.ptr[(((i < 0 || i >= a.shape[0]) || (j < 0 || j >= a.shape[1]) ||        \
+            (k < 0 || k >= a.shape[2]) || (r < 0 || r >= a.shape[3]) ||        \
+            (s < 0 || s >= a.shape[4]) || (t < 0 || t >= a.shape[5]) ||        \
+            (q < 0 || q >= a.shape[6])) &&                                     \
+           array_bounds_error_exit(a.array_num, i, j, k, r, s, t, q)) +        \
+          (i)*a.strides[0] + (j)*a.strides[1] + (k)*a.strides[2] +             \
+          (r)*a.strides[3] + (s)*a.strides[4] + (t)*a.strides[5] +             \
+          (q)*a.strides[6]]
 
-#define FOR_EACH_IJKRST_(ni, nj, nk, nr, ns, nt) \
-for (int i = 0; i < ni; ++i) \
-for (int j = 0; j < nj; ++j) \
-for (int k = 0; k < nk; ++k) \
-for (int r = 0; r < nr; ++r) \
-for (int s = 0; s < ns; ++s) \
-for (int t = 0; t < nt; ++t)
+#define FOR_EACH_IJKRST_(ni, nj, nk, nr, ns, nt)                               \
+    for (int i = 0; i < ni; ++i)                                               \
+        for (int j = 0; j < nj; ++j)                                           \
+            for (int k = 0; k < nk; ++k)                                       \
+                for (int r = 0; r < nr; ++r)                                   \
+                    for (int s = 0; s < ns; ++s)                               \
+                        for (int t = 0; t < nt; ++t)
 
-#define FOR_EACH_IJKRST(a) \
-FOR_EACH_IJKRST_(a.shape[0], a.shape[1], a.shape[2], a.shape[3], a.shape[4], a.shape[5])
+#define FOR_EACH_IJKRST(a)                                                     \
+    FOR_EACH_IJKRST_(a.shape[0], a.shape[1], a.shape[2], a.shape[3],           \
+                     a.shape[4], a.shape[5])
 
-
-
-
-// ============================================================================
+// =============================================================================
 // User interaction
-// ============================================================================
-int set_terminal(const char* terminal_str)
+// =============================================================================
+int set_terminal(const char *terminal_str)
 {
-    FILE* new_terminal = NULL;
+    FILE *new_terminal = NULL;
 
     if (terminal != NULL && terminal != stdout) {
         fclose(terminal);
@@ -463,22 +448,24 @@ int set_terminal(const char* terminal_str)
     if (strcmp(terminal_str, "stdout") == 0) {
         terminal = stdout;
     } else if ((new_terminal = fopen(terminal_str, "w")) == NULL) {
-        fprintf(stderr, "[error] unable to open terminal file %s\n", terminal_str);
+        fprintf(stderr, "[error] unable to open terminal file %s\n",
+                terminal_str);
         return 1;
     }
     terminal = new_terminal;
     return 0;
 }
 
-int set_binary_output(const char* file_str)
+int set_binary_output(const char *file_str)
 {
-    FILE* new_binary_output = NULL;
+    FILE *new_binary_output = NULL;
 
     if (binary_output != NULL) {
         fclose(binary_output);
-    }
-    else if (file_str && (new_binary_output = fopen(file_str, "wb")) == NULL) {
-        fprintf(stderr, "[error] unable to open binary output file %s\n", file_str);
+    } else if (file_str &&
+               (new_binary_output = fopen(file_str, "wb")) == NULL) {
+        fprintf(stderr, "[error] unable to open binary output file %s\n",
+                file_str);
         return 1;
     }
     binary_output = new_binary_output;
@@ -488,9 +475,9 @@ int set_binary_output(const char* file_str)
 
 
 
-// ============================================================================
-// 7 dimensional array data structure and functions to work with it.
-// ============================================================================
+// =============================================================================
+// Functions to generate stencil data
+// =============================================================================
 double gauss_quadrature_node(int order, int index)
 {
     switch (order) {
@@ -672,9 +659,9 @@ double lobatto_weight(int order, int index)
 
 
 
-// ============================================================================
+// =============================================================================
 // Grid functions
-// ============================================================================
+// =============================================================================
 int grid_gauss_init()
 {
     printf("[grid_gauss_init]\n");
@@ -690,14 +677,16 @@ int grid_gauss_init()
     double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ng_j);
     double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ng_k);
 
-    FOR_EACH_IJKRST(grid)
-    {
+    FOR_EACH_IJKRST (grid) {
         double xsi_x = gauss_quadrature_node(dg_r, r);
         double xsi_y = gauss_quadrature_node(dg_s, s);
         double xsi_z = gauss_quadrature_node(dg_t, t);
-        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ng_i + 0.5 * (1.0 + xsi_x));
-        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ng_j + 0.5 * (1.0 + xsi_y));
-        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ng_k + 0.5 * (1.0 + xsi_z));
+        GET7(grid, i, j, k, r, s, t, 0) =
+            domain_x0 + dx * (i - ng_i + 0.5 * (1.0 + xsi_x));
+        GET7(grid, i, j, k, r, s, t, 1) =
+            domain_y0 + dy * (j - ng_j + 0.5 * (1.0 + xsi_y));
+        GET7(grid, i, j, k, r, s, t, 2) =
+            domain_z0 + dz * (k - ng_k + 0.5 * (1.0 + xsi_z));
     }
     return 0;
 }
@@ -717,27 +706,33 @@ int grid_lobatto_init()
     double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ng_j);
     double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ng_k);
 
-    FOR_EACH_IJKRST(grid)
-    {
+    FOR_EACH_IJKRST (grid) {
         double xsi_x = lobatto_node(dg_r, r);
         double xsi_y = lobatto_node(dg_s, s);
         double xsi_z = lobatto_node(dg_t, t);
-        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ng_i + 0.5 * (1.0 + xsi_x));
-        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ng_j + 0.5 * (1.0 + xsi_y));
-        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ng_k + 0.5 * (1.0 + xsi_z));
+        GET7(grid, i, j, k, r, s, t, 0) =
+            domain_x0 + dx * (i - ng_i + 0.5 * (1.0 + xsi_x));
+        GET7(grid, i, j, k, r, s, t, 1) =
+            domain_y0 + dy * (j - ng_j + 0.5 * (1.0 + xsi_y));
+        GET7(grid, i, j, k, r, s, t, 2) =
+            domain_z0 + dz * (k - ng_k + 0.5 * (1.0 + xsi_z));
     }
     return 0;
 }
 
+
+
+
+// =============================================================================
+// Initial conditions
+// =============================================================================
 int prim_init()
 {
     struct Array grid = array_make(A_GAUSS_GRID);
 
     // LEAVING OFF HERE
 
-    FOR_EACH_IJKRST(grid)
-    {
-
+    FOR_EACH_IJKRST (grid) {
     }
     return 0;
 }
@@ -745,6 +740,9 @@ int prim_init()
 
 
 
+// =============================================================================
+// Main
+// =============================================================================
 int main()
 {
     set_terminal("stdout");
