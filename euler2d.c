@@ -79,16 +79,55 @@ struct Array
 #define A_FLUX_GOD_K   17
 #define A_TRZN         18
 #define A_NUM_ARRAYS   19
-static double* global_array[A_NUM_ARRAYS]; // C: elements are initialized to NULL
 
-// Function prototypes
+// All the allocations in use throughout the program.
+//
+// Note: since this is a static array, the pointers are initialized to NULL per
+// C standard.
+static double* global_array[A_NUM_ARRAYS];
+
+// Array API
 // --------------------------------------------------------
+
+// Return an array struct for the given array number.
+//
+// The array is returned even if its memory is not allocated, or it would have a
+// zero-shape.
+//
 struct Array array_make(int array_num);
+
+// Return the name of the array for the given array number.
+//
 const char* array_name(int array_num);
-void array_shape(int array_num, int* shape);
+
+// Return the 7-component shape of the array with the given array number.
+//
+void array_shape(int array_num, int shape[7]);
+
+// Return the number of elements in the array with the given array number.
+//
+// Multiply this number by sizeof(double) to get the allocation size for the
+// corresponding array.
+//
 size_t array_len(int array_num);
+
+// Require that the given array is allocated, and return its struct instance.
+//
 struct Array array_require_alloc(int array_num);
+
+// Deallocate an array.
+// 
 int array_clear(int array_num);
+
+// Write an array to the current binary output stream.
+//
+int array_write(int array_num);
+
+// Indicate an array was indexed out of bounds.
+//
+// This function writes a message to stderr and exits the program
+//
+int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t, int q);
 
 // Function implementations
 // --------------------------------------------------------
@@ -134,7 +173,7 @@ const char* array_name(int array_num)
     assert(0);
 }
 
-void array_shape(int array, int* shape)
+void array_shape(int array, int shape[7])
 {
     int dg_r = num_zones_i > 1 ? dg_order : 1;
     int dg_s = num_zones_j > 1 ? dg_order : 1;
@@ -373,7 +412,7 @@ int array_write(int array_num)
 
 int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t, int q)
 {
-    printf("out-of-bounds at index (%d %d %d %d %d %d %d) on array %s\n",
+    fprintf(stderr, "out-of-bounds at index (%d %d %d %d %d %d %d) on array%s\n",
         i, j, k, r, s, t, q, array_name(array));
     exit(1);
     return 0;
