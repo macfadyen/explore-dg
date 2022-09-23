@@ -438,7 +438,7 @@ int set_binary_output(const char* file_str)
     if (binary_output != NULL) {
         fclose(binary_output);
     }
-    if ((new_binary_output = fopen(file_str, "wb")) == NULL) {
+    else if (file_str && (new_binary_output = fopen(file_str, "wb")) == NULL) {
         fprintf(stderr, "[error] unable to open binary output file %s\n", file_str);
         return 1;
     }
@@ -663,7 +663,6 @@ int grid_gauss_init()
     return 0;
 }
 
-
 int grid_lobatto_init()
 {
     printf("[grid_lobatto_init]\n");
@@ -720,6 +719,10 @@ int main()
     set_binary_output("lobatto.bin");
     array_write(A_LOBATTO_GRID);
 
+    array_clear(A_GAUSS_GRID);
+    array_clear(A_LOBATTO_GRID);
+
+    set_binary_output(NULL);
     printf("[done]\n");
     return 0;
 }
