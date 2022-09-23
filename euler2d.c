@@ -31,19 +31,89 @@
 // =============================================================================
 // Runtime configuration
 // =============================================================================
-static FILE *terminal = NULL;
-static FILE *binary_output = NULL;
-static int dg_order = 3;
-static int num_zones_i = 10;
-static int num_zones_j = 10;
-static int num_zones_k = 1;
-static double domain_x0 = 0.0;
-static double domain_x1 = 1.0;
-static double domain_y0 = 0.0;
-static double domain_y1 = 1.0;
-static double domain_z0 = 0.0;
-static double domain_z1 = 1.0;
+static FILE *terminal;
+static FILE *binary_output;
+static int dg_order;
+static int num_zones_i;
+static int num_zones_j;
+static int num_zones_k;
+static double domain_x0;
+static double domain_x1;
+static double domain_y0;
+static double domain_y1;
+static double domain_z0;
+static double domain_z1;
 
+
+
+
+// =============================================================================
+// User interaction
+// =============================================================================
+int sim_reset();
+int sim_set_terminal(const char *terminal_str);
+int sim_set_binary_output(const char *terminal_str);
+
+// TODO
+int array_clear(int);
+
+int sim_reset()
+{
+    sim_set_terminal("stdout");
+    sim_set_binary_output(NULL);
+
+    dg_order = 3;
+    num_zones_i = 10;
+    num_zones_j = 10;
+    num_zones_k = 1;
+    domain_x0 = 0.0;
+    domain_x1 = 1.0;
+    domain_y0 = 0.0;
+    domain_y1 = 1.0;
+    domain_z0 = 0.0;
+    domain_z1 = 1.0;
+
+    // TODO: 19 -> A_NUM_ARRAYS
+
+    for (int n = 0; n < 19; ++n) {
+        array_clear(n);
+    }
+    return 0;
+}
+
+int sim_set_terminal(const char *terminal_str)
+{
+    FILE *new_terminal = NULL;
+
+    if (terminal != NULL && terminal != stdout) {
+        fclose(terminal);
+    }
+    if (strcmp(terminal_str, "stdout") == 0) {
+        terminal = stdout;
+    } else if ((new_terminal = fopen(terminal_str, "w")) == NULL) {
+        fprintf(stderr, "[error] unable to open terminal file %s\n",
+                terminal_str);
+        return 1;
+    }
+    terminal = new_terminal;
+    return 0;
+}
+
+int sim_set_binary_output(const char *file_str)
+{
+    FILE *new_binary_output = NULL;
+
+    if (binary_output != NULL) {
+        fclose(binary_output);
+    } else if (file_str &&
+               (new_binary_output = fopen(file_str, "wb")) == NULL) {
+        fprintf(stderr, "[error] unable to open binary output file %s\n",
+                file_str);
+        return 1;
+    }
+    binary_output = new_binary_output;
+    return 0;
+}
 
 
 
@@ -423,6 +493,8 @@ int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t,
           (r)*a.strides[3] + (s)*a.strides[4] + (t)*a.strides[5] +             \
           (q)*a.strides[6]]
 
+#define GETP6(a, i, j, k, r, s, t) (&GET7(a, i, j, k, r, s, t, 0))
+
 #define FOR_EACH_IJKRST_(ni, nj, nk, nr, ns, nt)                               \
     for (int i = 0; i < ni; ++i)                                               \
         for (int j = 0; j < nj; ++j)                                           \
@@ -434,43 +506,6 @@ int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t,
 #define FOR_EACH_IJKRST(a)                                                     \
     FOR_EACH_IJKRST_(a.shape[0], a.shape[1], a.shape[2], a.shape[3],           \
                      a.shape[4], a.shape[5])
-
-// =============================================================================
-// User interaction
-// =============================================================================
-int set_terminal(const char *terminal_str)
-{
-    FILE *new_terminal = NULL;
-
-    if (terminal != NULL && terminal != stdout) {
-        fclose(terminal);
-    }
-    if (strcmp(terminal_str, "stdout") == 0) {
-        terminal = stdout;
-    } else if ((new_terminal = fopen(terminal_str, "w")) == NULL) {
-        fprintf(stderr, "[error] unable to open terminal file %s\n",
-                terminal_str);
-        return 1;
-    }
-    terminal = new_terminal;
-    return 0;
-}
-
-int set_binary_output(const char *file_str)
-{
-    FILE *new_binary_output = NULL;
-
-    if (binary_output != NULL) {
-        fclose(binary_output);
-    } else if (file_str &&
-               (new_binary_output = fopen(file_str, "wb")) == NULL) {
-        fprintf(stderr, "[error] unable to open binary output file %s\n",
-                file_str);
-        return 1;
-    }
-    binary_output = new_binary_output;
-    return 0;
-}
 
 
 
@@ -729,10 +764,27 @@ int grid_lobatto_init()
 int prim_init()
 {
     struct Array grid = array_make(A_GAUSS_GRID);
+    struct Array prim = array_make(A_PRIM);
 
     // LEAVING OFF HERE
 
     FOR_EACH_IJKRST (grid) {
+        double *x = GETP6(grid, i, j, k, r, s, t);
+        double *p = GETP6(prim, i, j, k, r, s, t);
+
+        if (x[0] < 0.5) {
+            p[0] = 1.0;
+            p[1] = 0.0;
+            p[2] = 0.0;
+            p[3] = 0.0;
+            p[4] = 1.0;
+        } else {
+            p[0] = 0.1;
+            p[1] = 0.0;
+            p[2] = 0.0;
+            p[3] = 0.0;
+            p[4] = 0.125;
+        }
     }
     return 0;
 }
@@ -745,21 +797,19 @@ int prim_init()
 // =============================================================================
 int main()
 {
-    set_terminal("stdout");
+    sim_reset();
 
     grid_gauss_init();
     grid_lobatto_init();
 
-    set_binary_output("gauss.bin");
+    sim_set_binary_output("gauss.bin");
     array_write(A_GAUSS_GRID);
 
-    set_binary_output("lobatto.bin");
+    sim_set_binary_output("lobatto.bin");
     array_write(A_LOBATTO_GRID);
 
-    array_clear(A_GAUSS_GRID);
-    array_clear(A_LOBATTO_GRID);
+    sim_reset();
 
-    set_binary_output(NULL);
     printf("[done]\n");
     return 0;
 }
