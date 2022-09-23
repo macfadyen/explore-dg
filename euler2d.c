@@ -310,7 +310,7 @@ void array_shape(int array, int* shape)
             shape[2] = num_zones_k + 1;
             shape[3] = dg_r;
             shape[4] = dg_s;
-            shape[5] = 2;
+            shape[5] = 1;
             shape[6] = NUM_FIELDS;
         }
         else {
