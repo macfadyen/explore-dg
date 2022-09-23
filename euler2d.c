@@ -367,10 +367,11 @@ int array_write(int array_num)
     }
 
     fwrite(a.ptr, sizeof(double), array_len(array_num), binary_output);
+    fflush(binary_output);
     return 0;
 }
 
-int array_bounds_error(int array, int i, int j, int k, int r, int s, int t, int q)
+int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t, int q)
 {
     printf("out-of-bounds at index (%d %d %d %d %d %d %d) on array %s\n",
         i, j, k, r, s, t, q, array_name(array));
@@ -387,7 +388,7 @@ a.ptr[ \
   (r < 0 || r >= a.shape[3]) || \
   (s < 0 || s >= a.shape[4]) || \
   (t < 0 || t >= a.shape[5]) || \
-  (q < 0 || q >= a.shape[6])) && array_bounds_error(a.array_num, i, j, k, r, s, t, q)) \
+  (q < 0 || q >= a.shape[6])) && array_bounds_error_exit(a.array_num, i, j, k, r, s, t, q)) \
 + (i) * a.strides[0] \
 + (j) * a.strides[1] \
 + (k) * a.strides[2] \
@@ -396,13 +397,16 @@ a.ptr[ \
 + (t) * a.strides[5] \
 + (q) * a.strides[6]]
 
-#define FOR_IJKRST(ni, nj, nk, nr, ns, nt) \
+#define FOR_EACH_IJKRST_(ni, nj, nk, nr, ns, nt) \
 for (int i = 0; i < ni; ++i) \
 for (int j = 0; j < nj; ++j) \
 for (int k = 0; k < nk; ++k) \
 for (int r = 0; r < nr; ++r) \
 for (int s = 0; s < ns; ++s) \
 for (int t = 0; t < nt; ++t)
+
+#define FOR_EACH_IJKRST(a) \
+FOR_EACH_IJKRST_(a.shape[0], a.shape[1], a.shape[2], a.shape[3], a.shape[4], a.shape[5])
 
 
 
@@ -637,51 +641,52 @@ int grid_gauss_init()
     printf("[grid_gauss_init]\n");
 
     struct Array grid = array_require_alloc(A_GAUSS_GRID);
-    int ngi = num_zones_i > 1 ? 1 : 0;
-    int ngj = num_zones_j > 1 ? 1 : 0;
-    int ngk = num_zones_k > 1 ? 1 : 0;
+    int ng_i = num_zones_i > 1 ? 1 : 0;
+    int ng_j = num_zones_j > 1 ? 1 : 0;
+    int ng_k = num_zones_k > 1 ? 1 : 0;
     int dg_r = num_zones_i > 1 ? dg_order : 1;
     int dg_s = num_zones_j > 1 ? dg_order : 1;
     int dg_t = num_zones_k > 1 ? dg_order : 1;
-    double dx = (domain_x1 - domain_x0) / (num_zones_i - 2 * ngi);
-    double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ngj);
-    double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ngk);
+    double dx = (domain_x1 - domain_x0) / (num_zones_i - 2 * ng_i);
+    double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ng_j);
+    double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ng_k);
 
-    FOR_IJKRST(num_zones_i, num_zones_j, num_zones_k, dg_r, dg_s, dg_t)
+    FOR_EACH_IJKRST(grid)
     {
         double xsi_x = gauss_quadrature_node(dg_r, r);
         double xsi_y = gauss_quadrature_node(dg_s, s);
         double xsi_z = gauss_quadrature_node(dg_t, t);
-        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ngi + 0.5 * (1.0 + xsi_x));
-        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ngj + 0.5 * (1.0 + xsi_y));
-        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ngk + 0.5 * (1.0 + xsi_z));
+        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ng_i + 0.5 * (1.0 + xsi_x));
+        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ng_j + 0.5 * (1.0 + xsi_y));
+        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ng_k + 0.5 * (1.0 + xsi_z));
     }
     return 0;
 }
+
 
 int grid_lobatto_init()
 {
     printf("[grid_lobatto_init]\n");
 
     struct Array grid = array_require_alloc(A_LOBATTO_GRID);
-    int ngi = num_zones_i > 1 ? 1 : 0;
-    int ngj = num_zones_j > 1 ? 1 : 0;
-    int ngk = num_zones_k > 1 ? 1 : 0;
+    int ng_i = num_zones_i > 1 ? 1 : 0;
+    int ng_j = num_zones_j > 1 ? 1 : 0;
+    int ng_k = num_zones_k > 1 ? 1 : 0;
     int dg_r = num_zones_i > 1 ? dg_order : 1;
     int dg_s = num_zones_j > 1 ? dg_order : 1;
     int dg_t = num_zones_k > 1 ? dg_order : 1;
-    double dx = (domain_x1 - domain_x0) / (num_zones_i - 2 * ngi);
-    double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ngj);
-    double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ngk);
+    double dx = (domain_x1 - domain_x0) / (num_zones_i - 2 * ng_i);
+    double dy = (domain_y1 - domain_y0) / (num_zones_j - 2 * ng_j);
+    double dz = (domain_z1 - domain_z0) / (num_zones_k - 2 * ng_k);
 
-    FOR_IJKRST(num_zones_i, num_zones_j, num_zones_k, dg_r + 1, dg_s + 1, dg_t + 1)
+    FOR_EACH_IJKRST(grid)
     {
-        double xsi_x = lobatto_node(dg_order, r);
-        double xsi_y = lobatto_node(dg_order, s);
-        double xsi_z = lobatto_node(dg_order, t);
-        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ngi + 0.5 * (1.0 + xsi_x));
-        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ngj + 0.5 * (1.0 + xsi_y));
-        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ngk + 0.5 * (1.0 + xsi_z));
+        double xsi_x = lobatto_node(dg_r, r);
+        double xsi_y = lobatto_node(dg_s, s);
+        double xsi_z = lobatto_node(dg_t, t);
+        GET7(grid, i, j, k, r, s, t, 0) = domain_x0 + dx * (i - ng_i + 0.5 * (1.0 + xsi_x));
+        GET7(grid, i, j, k, r, s, t, 1) = domain_y0 + dy * (j - ng_j + 0.5 * (1.0 + xsi_y));
+        GET7(grid, i, j, k, r, s, t, 2) = domain_z0 + dz * (k - ng_k + 0.5 * (1.0 + xsi_z));
     }
     return 0;
 }
@@ -692,7 +697,7 @@ int prim_init()
 
     // LEAVING OFF HERE
 
-    FOR_IJKRST(num_zones_i, num_zones_j, num_zones_k, dg_order, dg_order, dg_order)
+    FOR_EACH_IJKRST(grid)
     {
 
     }
