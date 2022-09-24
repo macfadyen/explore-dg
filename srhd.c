@@ -6,12 +6,12 @@
 #include <time.h>
 
 #define MAX_COMMAND_LEN 1024
-#define MAX_DG_ORDER 11
-#define NUM_FIELDS 3
-#define min2(a, b) ((a) < (b) ? (a) : (b))
-#define max2(a, b) ((a) > (b) ? (a) : (b))
-#define min3(a, b, c) min2(a, min2(b, c))
-#define max3(a, b, c) max2(a, max2(b, c))
+#define MAX_DG_ORDER    11
+#define NUM_FIELDS      3
+#define min2(a, b)      ((a) < (b) ? (a) : (b))
+#define max2(a, b)      ((a) > (b) ? (a) : (b))
+#define min3(a, b, c)   min2(a, min2(b, c))
+#define max3(a, b, c)   max2(a, max2(b, c))
 #define TRY(n)                                                                 \
     do {                                                                       \
         int res = n;                                                           \
@@ -19,7 +19,7 @@
             return res;                                                        \
     } while (0)
 
-static FILE* terminal = NULL;
+static FILE *terminal = NULL;
 static int num_zones = 100;
 static int order = 3;
 static int rk_order = 3;
@@ -32,11 +32,11 @@ static double tci_threshold = 0.001;
 static double cfl_parameter = 0.1;
 static double adiabatic_gamma = 5.0 / 3.0;
 static double time_final = 0.1;
-int solver_type = 1; // 0: "LLF" 1: "HLLE" 2: "HLLC" or 3: "Exact"
-int tci_type = 0; // 0: "Zrake" 1: "FuShu" 2: "minmod" 3: Persson
+int solver_type = 1;        // 0: "LLF" 1: "HLLE" 2: "HLLC" or 3: "Exact"
+int tci_type = 0;           // 0: "Zrake" 1: "FuShu" 2: "minmod" 3: Persson
 int boundary_condition = 0; // 0: "outflow" or 1: "periodic" or 2:"reflecting"
-double floor_rho_p = 0.0; // floor on both rho and p
-int initial_condition = 1; // 0: "FS32 or easy sod"
+double floor_rho_p = 0.0;   // floor on both rho and p
+int initial_condition = 1;  // 0: "FS32 or easy sod"
 
 struct timespec timer_start()
 {
@@ -49,8 +49,8 @@ long timer_end(struct timespec start_time)
 {
     struct timespec end_time;
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &end_time);
-    long nanos = (end_time.tv_sec - start_time.tv_sec) * 1000000000L
-        + (end_time.tv_nsec - start_time.tv_nsec);
+    long nanos = (end_time.tv_sec - start_time.tv_sec) * 1000000000L +
+                 (end_time.tv_nsec - start_time.tv_nsec);
     return nanos;
 }
 
@@ -82,8 +82,8 @@ double legendre_polynomial_derivative(int n, double x)
     double p = 0.0;
 
     for (int k = 0; k <= n; ++k) {
-        p += choose(n, k) * choose(n + k, k) * 0.5 * k
-            * pow(0.5 * (x - 1), k - 1);
+        p += choose(n, k) * choose(n + k, k) * 0.5 * k *
+             pow(0.5 * (x - 1), k - 1);
     }
     return p * sqrt(2 * n + 1);
 }
@@ -347,27 +347,21 @@ double rk_parameter_for_step(int s, int rk_order)
     assert(0);
 }
 
-double enthalpy_density(double* prim)
+double enthalpy_density(double *prim)
 {
     return prim[0] + prim[2] * adiabatic_gamma / (adiabatic_gamma - 1.0);
 }
 
-double cs(double* prim)
+double cs(double *prim)
 {
     return sqrt(adiabatic_gamma * prim[2] / enthalpy_density(prim));
 }
 
-double lorentz_factor(gb)
-{
-    return sqrt(1.0 + gb * gb);
-}
+double lorentz_factor(gb) { return sqrt(1.0 + gb * gb); }
 
-double beta(gb)
-{
-    return gb / lorentz_factor(gb);
-}
+double beta(gb) { return gb / lorentz_factor(gb); }
 
-void hydro_prim_to_cons(double* prim, double* cons)
+void hydro_prim_to_cons(double *prim, double *cons)
 {
     double rho = prim[0];
     double vel = beta(prim[1]);
@@ -380,51 +374,50 @@ void hydro_prim_to_cons(double* prim, double* cons)
     cons[2] = h * gamma * gamma - pre - cons[0];
 }
 
-void hydro_cons_to_prim(double* cons, double* prim)
+void hydro_cons_to_prim(double *cons, double *prim)
 {
-    double TOL   = 1e-10;
+    double TOL = 1e-10;
     int max_iter = 50;
 
-    double D   = cons[0];
-    double SS  = cons[1] * cons[1];
+    double d = cons[0];
+    double s2 = cons[1] * cons[1];
     double tau = cons[2];
     double pre = prim[2]; // initial pressure guess
-    double W0  = 1.0;
+    double w0 = 1.0;
     int iter = 0;
 
-    while (iter < max_iter)
-    {
-        double v2  = min2(SS / pow(tau + D + pre, 2), 1.0 - 1e-10); // max gamma = 1e5
-        double W2  = 1.0 / (1.0 - v2);
-        double W   = sqrt(W2);
-        double e   = (tau + D * (1.0 - W) + pre * (1.0 - W2)) / (D * W);
-        double rho = D / W;
-        double h   = 1.0 + e + pre / rho;
+    while (iter < max_iter) {
+        double v2 =
+            min2(s2 / pow(tau + d + pre, 2), 1.0 - 1e-10); // max gamma = 1e5
+        double w2 = 1.0 / (1.0 - v2);
+        double w = sqrt(w2);
+        double e = (tau + d * (1.0 - w) + pre * (1.0 - w2)) / (d * w);
+        double rho = d / w;
+        double h = 1.0 + e + pre / rho;
         double cs2 = adiabatic_gamma * pre / (rho * h);
         double f = rho * e * (adiabatic_gamma - 1.0) - pre;
         double g = v2 * cs2 - 1.0;
-        
+
         pre -= f / g;
 
-        if (fabs(f) < TOL)
-        {
-            W0 = W;
+        if (fabs(f) < TOL) {
+            w0 = w;
             break;
         }
         ++iter;
     }
 
-    prim[0] = D / W0;
-    prim[1] = W0 * cons[1] / (tau + D + pre);
+    prim[0] = d / w0;
+    prim[1] = w0 * cons[1] / (tau + d + pre);
     prim[2] = pre;
 }
 
-void hydro_flux(double* prim, double* flux)
+void hydro_flux(double *prim, double *flux)
 {
     double vel = beta(prim[1]);
     double pre = prim[2];
     double cons[NUM_FIELDS];
-    
+
     hydro_prim_to_cons(prim, cons);
 
     flux[0] = cons[0] * vel;
@@ -432,30 +425,30 @@ void hydro_flux(double* prim, double* flux)
     flux[2] = cons[1] - cons[0] * vel;
 }
 
-double hydro_sound_speed(double* prim)
+double hydro_sound_speed(double *prim)
 {
     return sqrt(adiabatic_gamma * prim[2] / enthalpy_density(prim));
 }
 
-double wavespeed(double* prim, double mp)
+double wavespeed(double *prim, double mp)
 {
     // mp = 1.0 for plus speed and -1.0 for minus speed
     double cs = hydro_sound_speed(prim);
-    double W  = lorentz_factor(prim[1]);
+    double W = lorentz_factor(prim[1]);
     double vel = beta(prim[1]);
     double sigma = cs * cs / (W * W * (1.0 - cs * cs));
     double fac = mp * sqrt(sigma * (1.0 - vel * vel + sigma));
     return (vel + fac) / (1.0 + sigma);
 }
 
-void hydro_riemann_hlle(
-    double* pl, double* pr, double* ul, double* ur, double* fhat)
+void hydro_riemann_hlle(double *pl, double *pr, double *ul, double *ur,
+                        double *fhat)
 {
     double fl[NUM_FIELDS];
     double fr[NUM_FIELDS];
-    double lam_pl = wavespeed(pl,  1.0);
+    double lam_pl = wavespeed(pl, 1.0);
     double lam_ml = wavespeed(pl, -1.0);
-    double lam_pr = wavespeed(pr,  1.0);
+    double lam_pr = wavespeed(pr, 1.0);
     double lam_mr = wavespeed(pr, -1.0);
     double ap = max3(0.0, lam_pl, lam_pr);
     double am = min3(0.0, lam_ml, lam_mr);
@@ -464,12 +457,12 @@ void hydro_riemann_hlle(
     hydro_flux(pl, fl);
 
     for (int q = 0; q < NUM_FIELDS; ++q) {
-        fhat[q]
-            = (ap * fl[q] - am * fr[q] + ap * am * (ur[q] - ul[q])) / (ap - am);
+        fhat[q] =
+            (ap * fl[q] - am * fr[q] + ap * am * (ur[q] - ul[q])) / (ap - am);
     }
 }
 
-double fk(double p, double* prim)
+double fk(double p, double *prim)
 {
     double g = adiabatic_gamma;
     double gp1 = adiabatic_gamma + 1.0;
@@ -480,18 +473,15 @@ double fk(double p, double* prim)
     double ak = 2.0 / ((g + 1.0) * dk);
     double bk = gm1 / gp1 * pk;
 
-    if (p > pk)
-    {
+    if (p > pk) {
         return (p - pk) * sqrt(ak / (p + bk));
-    }
-    else
-    {
+    } else {
         return 2.0 * csk / gm1 * (pow(p / pk, 0.5 * gm1 / g) - 1.0);
     }
 }
 
 
-double fkder(double p, double* prim)
+double fkder(double p, double *prim)
 {
     double g = adiabatic_gamma;
     double gp1 = adiabatic_gamma + 1.0;
@@ -502,16 +492,14 @@ double fkder(double p, double* prim)
     double ak = 2.0 / ((g + 1.0) * dk);
     double bk = gm1 / gp1 * pk;
 
-    if (p > pk)
-    {
+    if (p > pk) {
         return sqrt(ak / (p + bk)) * (1.0 - 0.5 * (p - pk) / (bk + p));
-    }
-    else{
+    } else {
         return 1.0 / (dk * csk) * pow(p / pk, -gp1 / (2.0 * g));
     }
 }
 
-void hydro_riemann_exact(double* pl, double* pr, double* fhat)
+void hydro_riemann_exact(double *pl, double *pr, double *fhat)
 {
     double g = adiabatic_gamma;
     double gp1 = adiabatic_gamma + 1.0;
@@ -524,158 +512,163 @@ void hydro_riemann_exact(double* pl, double* pr, double* fhat)
     double csr = hydro_sound_speed(pr);
 
     double du = pr[1] - pl[1];
-    double ps = pow((csl + csr - 0.5 * gm1 * du) / 
-        (csl / pow(pl[2], 0.5 * gm1 / g) + csr / pow(pr[2], 0.5 * gm1 / g))
-        , (2.0 * g / gm1)); // Toro 4.46 for 2 rarefaction case
+    double ps =
+        pow((csl + csr - 0.5 * gm1 * du) / (csl / pow(pl[2], 0.5 * gm1 / g) +
+                                            csr / pow(pr[2], 0.5 * gm1 / g)),
+            (2.0 * g / gm1)); // Toro 4.46 for 2 rarefaction case
 
     int iter = 0;
 
-    if (!(ps < pl[2] && ps < pr[2]))
-    {
-        while(err > TOL) 
-        { 
-            double dp = -(fk(ps, pl) + fk(ps, pr) + du) / (fkder(ps, pl) + fkder(ps, pr)); 
+    if (!(ps < pl[2] && ps < pr[2])) {
+        while (err > TOL) {
+            double dp = -(fk(ps, pl) + fk(ps, pr) + du) /
+                        (fkder(ps, pl) + fkder(ps, pr));
             ps += dp;
             err = fabs(dp) / (ps - 0.5 * dp);
             iter++;
         }
     }
-    //printf("Iterations = %d\n", iter);
+    // printf("Iterations = %d\n", iter);
 
-    double us = 0.5 * (pl[1] + pr[1]) + 0.5 * (fk(ps, pr) - fk(ps, pl));  // Toro 4.9
-    //printf("ps = %f us = %f\n", ps, us);
+    double us =
+        0.5 * (pl[1] + pr[1]) + 0.5 * (fk(ps, pr) - fk(ps, pl)); // Toro 4.9
+    // printf("ps = %f us = %f\n", ps, us);
 
-    if (s < us)  // left of CD
+    if (s < us) // left of CD
     {
-        if (ps > pl[2])  //  left wave is a shock
+        if (ps > pl[2]) //  left wave is a shock
         {
-            double sl = pl[1] - csl * sqrt((gp1 * ps / pl[2] + gm1) / (2.0 * g));  // Toro 4.52
+            double sl = pl[1] - csl * sqrt((gp1 * ps / pl[2] + gm1) /
+                                           (2.0 * g)); // Toro 4.52
 
             if (s < sl) // in left state
             {
-                prim[0] = pl[0]; 
-                prim[1] = pl[1]; 
+                prim[0] = pl[0];
+                prim[1] = pl[1];
                 prim[2] = pl[2];
-            }
-            else // behind left shock
+            } else // behind left shock
             {
-                double dsl = pl[0] * ((ps / pl[2] + gm1 / gp1) / (gm1 / gp1 * ps / pl[2] + 1.0));  // Toro 4.50
-                //printf("dsl: %e\n",dsl);
+                double dsl =
+                    pl[0] * ((ps / pl[2] + gm1 / gp1) /
+                             (gm1 / gp1 * ps / pl[2] + 1.0)); // Toro 4.50
+                // printf("dsl: %e\n",dsl);
 
-                prim[0] = dsl; 
-                prim[1] = us; 
+                prim[0] = dsl;
+                prim[1] = us;
                 prim[2] = ps;
             }
-        }
-        else  // left wave is a rarefaction
+        } else // left wave is a rarefaction
         {
-            double asl = csl * pow(ps / pl[2], gm1 / (2.0 * g)); 
-            double shl = pl[1] - csl;  // speed of head of rarefaction
-            double stl = us - asl;   // speed of tail of rarefaction
+            double asl = csl * pow(ps / pl[2], gm1 / (2.0 * g));
+            double shl = pl[1] - csl; // speed of head of rarefaction
+            double stl = us - asl;    // speed of tail of rarefaction
 
             if (s < shl) // in left state
             {
-                prim[0] = pl[0]; 
-                prim[1] = pl[1]; 
+                prim[0] = pl[0];
+                prim[1] = pl[1];
                 prim[2] = pl[2];
-            }
-            else
-            {
-                if (s > stl)  // in left star state
+            } else {
+                if (s > stl) // in left star state
                 {
                     double dsl = pl[0] * pow(ps / pl[2], 1.0 / g);
-                    //printf("dsl: %e\n",dsl);
+                    // printf("dsl: %e\n",dsl);
 
-                    prim[0] = dsl; 
-                    prim[1] = us; 
+                    prim[0] = dsl;
+                    prim[1] = us;
                     prim[2] = ps;
-                }
-                else  // in left fan state
+                } else // in left fan state
                 {
-                    prim[0] = pl[0] * pow(2.0 / gp1 + gm1 / gp1 / csl * (pl[1] - s), 2.0 / gm1);
+                    prim[0] =
+                        pl[0] * pow(2.0 / gp1 + gm1 / gp1 / csl * (pl[1] - s),
+                                    2.0 / gm1);
                     prim[1] = 2.0 / gp1 * (csl + gm1 / 2.0 * pl[1] + s);
-                    prim[2] = pl[2] * pow(2.0 / gp1 + gm1 / gp1 / csl * (pl[1] - s), 2.0 * g / gm1);
+                    prim[2] =
+                        pl[2] * pow(2.0 / gp1 + gm1 / gp1 / csl * (pl[1] - s),
+                                    2.0 * g / gm1);
                 }
             }
         }
-    }
-    else  // right side of CD
+    } else // right side of CD
     {
-        if (ps > pr[2])  // right wave is a shock
+        if (ps > pr[2]) // right wave is a shock
         {
-            double sr = pr[1] + csr * sqrt(((gp1 * ps / pr[2] + gm1) / (2.0 * g)));  // Toro 4.59
+            double sr =
+                pr[1] +
+                csr * sqrt(((gp1 * ps / pr[2] + gm1) / (2.0 * g))); // Toro 4.59
 
             if (s > sr) // in right state
             {
-                prim[0] = pr[0]; 
-                prim[1] = pr[1]; 
+                prim[0] = pr[0];
+                prim[1] = pr[1];
                 prim[2] = pr[2];
-            }
-            else // behind right shock
+            } else // behind right shock
             {
-                double dsr = pr[0] * ((ps / pr[2] + gm1 / gp1) / (gm1 / gp1 * ps / pr[2] + 1.0));  // Toro 4.57
-                //printf("dsr: %e\n",dsr);
+                double dsr =
+                    pr[0] * ((ps / pr[2] + gm1 / gp1) /
+                             (gm1 / gp1 * ps / pr[2] + 1.0)); // Toro 4.57
+                // printf("dsr: %e\n",dsr);
 
-                prim[0] = dsr; 
-                prim[1] = us; 
+                prim[0] = dsr;
+                prim[1] = us;
                 prim[2] = ps;
             }
-        }
-        else  // right wave is a rarefaction
+        } else // right wave is a rarefaction
         {
-            double asr = csr * pow(ps / pr[2], gm1 / (2.0 * g)); 
-            double shr = pr[1] + csr;  // speed of head of rarefaction
+            double asr = csr * pow(ps / pr[2], gm1 / (2.0 * g));
+            double shr = pr[1] + csr; // speed of head of rarefaction
             double str = us + asr;    // speed of tail of rarefaction
 
             if (s > shr) // in right state
             {
-                prim[0] = pr[0]; 
-                prim[1] = pr[1]; 
+                prim[0] = pr[0];
+                prim[1] = pr[1];
                 prim[2] = pr[2];
-            }
-            else
-            {
-                if (s < str)  // in right star state
+            } else {
+                if (s < str) // in right star state
                 {
                     double dsr = pr[0] * pow(ps / pr[2], 1.0 / g);
-                    //printf("dsr: %e\n",dsr);
+                    // printf("dsr: %e\n",dsr);
 
-                    prim[0] = dsr; 
-                    prim[1] = us; 
+                    prim[0] = dsr;
+                    prim[1] = us;
                     prim[2] = ps;
-                }
-                else  // in right fan state (Toro 4.63)
+                } else // in right fan state (Toro 4.63)
                 {
-                    prim[0] = pr[0] * pow(2.0 / gp1 - gm1 / gp1 / csr * (pr[1] - s), 2.0 / gm1);
+                    prim[0] =
+                        pr[0] * pow(2.0 / gp1 - gm1 / gp1 / csr * (pr[1] - s),
+                                    2.0 / gm1);
                     prim[1] = 2.0 / gp1 * (-csr + gm1 / 2.0 * pr[1] + s);
-                    prim[2] = pr[2] * pow(2.0 / gp1 - gm1 / gp1 / csr * (pr[1] - s), 2.0 * g / gm1);
+                    prim[2] =
+                        pr[2] * pow(2.0 / gp1 - gm1 / gp1 / csr * (pr[1] - s),
+                                    2.0 * g / gm1);
                 }
             }
         }
     }
-    hydro_flux(prim, fhat);  
+    hydro_flux(prim, fhat);
 }
 
-#define A_GRID 0
-#define A_WGTS 1
+#define A_GRID       0
+#define A_WGTS       1
 #define A_WGTS_CACHE 2
 #define A_WGTS_DELTA 3
-#define A_PRIM 4
-#define A_CONS 5
+#define A_PRIM       4
+#define A_CONS       5
 #define A_CONS_DELTA 6
-#define A_CONS_SRF 7
-#define A_FLUX 8
-#define A_FLUX_GOD 9
-#define A_TRZN 10
-#define ARRAY_COUNT 12
+#define A_CONS_SRF   7
+#define A_FLUX       8
+#define A_FLUX_GOD   9
+#define A_TRZN       10
+#define ARRAY_COUNT  12
 
 #define CURRENT 0
 #define INVALID 1
 
-static double* global_array[ARRAY_COUNT];
+static double *global_array[ARRAY_COUNT];
 static int global_array_status[ARRAY_COUNT];
 
-const char* array_name(int array)
+const char *array_name(int array)
 {
     switch (array) {
     case A_GRID: return "grid";
@@ -692,7 +685,7 @@ const char* array_name(int array)
     assert(0);
 }
 
-void array_shape(int array, int* shape)
+void array_shape(int array, int *shape)
 {
     int ni = num_zones;
     int nq = NUM_FIELDS;
@@ -747,7 +740,7 @@ void array_shape(int array, int* shape)
     assert(0);
 }
 
-void array_stride(int array, int* stride)
+void array_stride(int array, int *stride)
 {
     int shape[3];
     array_shape(array, shape);
@@ -756,7 +749,7 @@ void array_stride(int array, int* stride)
     stride[0] = stride[1] * shape[1];
 }
 
-double* array_ptr_stride(int array, int* stride)
+double *array_ptr_stride(int array, int *stride)
 {
     array_stride(array, stride);
     return global_array[array];
@@ -771,7 +764,7 @@ size_t array_len(int array)
 
 void array_alloc_if_needed(int array)
 {
-    double** ptr = &global_array[array];
+    double **ptr = &global_array[array];
 
     if (*ptr == NULL) {
         size_t elem = array_len(array);
@@ -819,7 +812,7 @@ int array_print(int array)
         return 1;
     }
 
-    double* data = global_array[array];
+    double *data = global_array[array];
     int n[3];
     int s[3];
     array_shape(array, n);
@@ -828,8 +821,8 @@ int array_print(int array)
     for (int i = 0; i < n[0]; ++i) {
         for (int r = 0; r < n[1]; ++r) {
             for (int q = 0; q < n[2]; ++q) {
-                fprintf(
-                    terminal, "%+.16f ", data[i * s[0] + r * s[1] + q * s[2]]);
+                fprintf(terminal, "%+.16f ",
+                        data[i * s[0] + r * s[1] + q * s[2]]);
             }
             fprintf(terminal, "\n");
         }
@@ -837,7 +830,7 @@ int array_print(int array)
     return 0;
 }
 
-int set_terminal(const char* terminal_str);
+int set_terminal(const char *terminal_str);
 
 int trzn_print_to_file(int array)
 {
@@ -845,11 +838,11 @@ int trzn_print_to_file(int array)
         return 1;
     }
 
-    FILE *fp; 
+    FILE *fp;
 
     fp = fopen("trzn.dat", "a");
 
-    double* data = global_array[array];
+    double *data = global_array[array];
     int n[3];
     int s[3];
     array_shape(array, n);
@@ -858,8 +851,7 @@ int trzn_print_to_file(int array)
     for (int i = 0; i < n[0]; ++i) {
         for (int r = 0; r < n[1]; ++r) {
             for (int q = 0; q < n[2]; ++q) {
-                fprintf(
-                    fp, "%+.16f ", data[i * s[0] + r * s[1] + q * s[2]]);
+                fprintf(fp, "%+.16f ", data[i * s[0] + r * s[1] + q * s[2]]);
             }
         }
     }
@@ -883,9 +875,9 @@ int project(int w_array, int u_array, int use_tci)
     int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
-    double* t = global_array[A_TRZN];
-    double* u = array_ptr_stride(u_array, us);
-    double* w = array_ptr_stride(w_array, ws);
+    double *t = global_array[A_TRZN];
+    double *u = array_ptr_stride(u_array, us);
+    double *w = array_ptr_stride(w_array, ws);
 
     double phi[MAX_DG_ORDER * MAX_DG_ORDER];
     double xsi[MAX_DG_ORDER];
@@ -911,7 +903,7 @@ int project(int w_array, int u_array, int use_tci)
                 for (int r = 0; r < num_points; ++r) {
                     double wr = wgt[r];
                     double prl = phi[r * order + l];
-                    double* uirq = &u[i * us[0] + r * us[1] + q * us[2]];
+                    double *uirq = &u[i * us[0] + r * us[1] + q * us[2]];
                     wiql += *uirq * prl * wr * 0.5;
                 }
                 w[i * ws[0] + q * ws[1] + l * ws[2]] = wiql;
@@ -925,7 +917,7 @@ int grid_init()
 {
     array_alloc_if_needed(A_GRID);
 
-    double* grid = global_array[A_GRID];
+    double *grid = global_array[A_GRID];
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
     double x0 = domain_x0 - dx;
 
@@ -938,7 +930,7 @@ int grid_init()
     return array_set_current(A_GRID);
 }
 
-int prim_init(void (*prim_func)(double x, double*))
+int prim_init(void (*prim_func)(double x, double *))
 {
     if (array_require_current(A_GRID)) {
         return 1;
@@ -948,13 +940,13 @@ int prim_init(void (*prim_func)(double x, double*))
     int num_points = order;
     int xs[3];
     int ps[3];
-    double* x = array_ptr_stride(A_GRID, xs);
-    double* p = array_ptr_stride(A_PRIM, ps);
+    double *x = array_ptr_stride(A_GRID, xs);
+    double *p = array_ptr_stride(A_PRIM, ps);
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < num_points; ++r) {
-            double* xir = &x[i * xs[0] + r * xs[1]];
-            double* pir = &p[i * ps[0] + r * ps[1]];
+            double *xir = &x[i * xs[0] + r * xs[1]];
+            double *pir = &p[i * ps[0] + r * ps[1]];
             prim_func(*xir, pir);
         }
     }
@@ -962,7 +954,7 @@ int prim_init(void (*prim_func)(double x, double*))
 }
 
 // Test 1 from RAM paper (Zhang & MacFadyen 2006)
-void prim_func_ram1(double x, double* prim)
+void prim_func_ram1(double x, double *prim)
 {
     if (x < 0.5) {
         prim[0] = 10.0;
@@ -975,23 +967,16 @@ void prim_func_ram1(double x, double* prim)
     }
 }
 
-int prim_init_ram1()
+int prim_init_ram1() { return prim_init(prim_func_ram1); }
+
+void prim_func_dwave(double x, double *prim)
 {
-    return prim_init(prim_func_ram1);
+    prim[0] = 1.0 + 0.5 * sin(2 * M_PI * x);
+    prim[1] = 0.5;
+    prim[2] = 1.0;
 }
 
-//void prim_func_dwave(double x, double* prim)
-//{
-//    prim[0] = 1.0 + 0.5 * sin(2 * M_PI * x);
-//    prim[1] = 1.0;
-//    prim[2] = 1.0;
-//}
-//
-//int prim_init_dwave()
-//{
-//    return prim_init(prim_func_dwave);
-//}
-
+int prim_init_dwave() { return prim_init(prim_func_dwave); }
 
 //**********************************************************//
 
@@ -1005,13 +990,13 @@ int prim_from_cons()
     int num_points = order;
     int us[3];
     int ps[3];
-    double* u = array_ptr_stride(A_CONS, us);
-    double* p = array_ptr_stride(A_PRIM, ps);
+    double *u = array_ptr_stride(A_CONS, us);
+    double *p = array_ptr_stride(A_PRIM, ps);
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < num_points; ++r) {
-            double* uirq = &u[i * us[0] + r * us[1]];
-            double* pirq = &p[i * ps[0] + r * ps[1]];
+            double *uirq = &u[i * us[0] + r * us[1]];
+            double *pirq = &p[i * ps[0] + r * ps[1]];
             hydro_cons_to_prim(uirq, pirq);
         }
     }
@@ -1028,13 +1013,13 @@ int cons_from_prim()
     int num_points = order;
     int ps[3];
     int us[3];
-    double* p = array_ptr_stride(A_PRIM, ps);
-    double* u = array_ptr_stride(A_CONS, us);
+    double *p = array_ptr_stride(A_PRIM, ps);
+    double *u = array_ptr_stride(A_CONS, us);
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < num_points; ++r) {
-            double* pirq = &p[i * ps[0] + r * ps[1]];
-            double* uirq = &u[i * us[0] + r * us[1]];
+            double *pirq = &p[i * ps[0] + r * ps[1]];
+            double *uirq = &u[i * us[0] + r * us[1]];
             hydro_prim_to_cons(pirq, uirq);
         }
     }
@@ -1053,16 +1038,17 @@ int timestep_compute()
     int ps[3];
 
     double timestep = 1e30;
-    double* p = array_ptr_stride(A_PRIM, ps);
+    double *p = array_ptr_stride(A_PRIM, ps);
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < num_points; ++r) {
-            double* prim = &p[i * ps[0] + r * ps[1]];
+            double *prim = &p[i * ps[0] + r * ps[1]];
             double vel = prim[1];
-            double cs  = hydro_sound_speed(prim);
+            double cs = hydro_sound_speed(prim);
             double lam_p = vel + cs;
             double lam_m = vel - cs;
-            timestep = min2(timestep, cfl_parameter * dx / max2(fabs(lam_m), fabs(lam_p)));
+            timestep = min2(timestep, cfl_parameter * dx /
+                                          max2(fabs(lam_m), fabs(lam_p)));
         }
     }
     time_step = min2(timestep, time_final - time_phys);
@@ -1081,15 +1067,15 @@ int cons_from_wgts()
     int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
-    double* u = array_ptr_stride(A_CONS, us);
-    double* w = array_ptr_stride(A_WGTS, ws);
+    double *u = array_ptr_stride(A_CONS, us);
+    double *w = array_ptr_stride(A_WGTS, ws);
 
     double phi[MAX_DG_ORDER * MAX_DG_ORDER];
 
     for (int r = 0; r < num_points; ++r) {
         for (int l = 0; l < num_poly; ++l) {
-            phi[r * order + l]
-                = legendre_polynomial(l, gauss_quadrature_node(order, r));
+            phi[r * order + l] =
+                legendre_polynomial(l, gauss_quadrature_node(order, r));
         }
     }
 
@@ -1100,7 +1086,7 @@ int cons_from_wgts()
 
                 for (int l = 0; l < num_poly; ++l) {
                     double prl = phi[r * order + l];
-                    double* wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
+                    double *wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
                     uirq += *wiql * prl;
                 }
                 u[i * us[0] + r * us[1] + q * us[2]] = uirq;
@@ -1121,8 +1107,8 @@ int cons_srf_from_wgts()
     int num_fields = NUM_FIELDS;
     int us[3];
     int ws[3];
-    double* u = array_ptr_stride(A_CONS_SRF, us);
-    double* w = array_ptr_stride(A_WGTS, ws);
+    double *u = array_ptr_stride(A_CONS_SRF, us);
+    double *w = array_ptr_stride(A_WGTS, ws);
 
     double phi_srf[2 * MAX_DG_ORDER];
 
@@ -1138,7 +1124,7 @@ int cons_srf_from_wgts()
 
                 for (int l = 0; l < num_poly; ++l) {
                     double prl = phi_srf[r * order + l];
-                    double* wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
+                    double *wiql = &w[i * ws[0] + q * ws[1] + l * ws[2]];
                     uirq += *wiql * prl;
                 }
                 u[i * us[0] + r * us[1] + q * us[2]] = uirq;
@@ -1159,13 +1145,13 @@ int cons_delta_from_flux_god()
     int num_fields = NUM_FIELDS;
     double dt = time_step;
 
-    double* f = global_array[A_FLUX_GOD];
-    double* x = global_array[A_GRID];
-    double* du = global_array[A_CONS_DELTA];
+    double *f = global_array[A_FLUX_GOD];
+    double *x = global_array[A_GRID];
+    double *du = global_array[A_CONS_DELTA];
 
     for (int r = 1; r < num_zones * num_points - 1; ++r) {
-        double* fimh = &f[(r + 0) * num_fields];
-        double* fiph = &f[(r + 1) * num_fields];
+        double *fimh = &f[(r + 0) * num_fields];
+        double *fiph = &f[(r + 1) * num_fields];
         double ximh = 0.5 * (x[r - 1] + x[r + 0]);
         double xiph = 0.5 * (x[r + 0] + x[r + 1]);
 
@@ -1184,7 +1170,7 @@ int cons_apply_bc()
     int num_points = order;
     int num_fields = NUM_FIELDS;
     int us[3];
-    double* u = array_ptr_stride(A_WGTS, us);
+    double *u = array_ptr_stride(A_WGTS, us);
 
     for (int r = 0; r < num_points; ++r) {
         for (int q = 0; q < num_fields; ++q) {
@@ -1198,8 +1184,8 @@ int cons_apply_bc()
 
 int wgts_delta_from_dg()
 {
-    if (array_require_current(A_FLUX) || array_require_current(A_FLUX_GOD)
-        || array_require_current(A_TRZN)) {
+    if (array_require_current(A_FLUX) || array_require_current(A_FLUX_GOD) ||
+        array_require_current(A_TRZN)) {
         return 1;
     }
     array_alloc_if_needed(A_WGTS_DELTA);
@@ -1210,10 +1196,10 @@ int wgts_delta_from_dg()
     int gs[3];
     int fs[3];
     int ws[3];
-    double* t = global_array[A_TRZN];
-    double* g = array_ptr_stride(A_FLUX_GOD, gs);
-    double* f = array_ptr_stride(A_FLUX, fs);
-    double* dw = array_ptr_stride(A_WGTS_DELTA, ws);
+    double *t = global_array[A_TRZN];
+    double *g = array_ptr_stride(A_FLUX_GOD, gs);
+    double *f = array_ptr_stride(A_FLUX, fs);
+    double *dw = array_ptr_stride(A_WGTS_DELTA, ws);
     double dx = (domain_x1 - domain_x0) / (num_zones - 2);
     double dt = time_step;
 
@@ -1241,8 +1227,8 @@ int wgts_delta_from_dg()
             continue;
         }
         for (int q = 0; q < num_fields; ++q) {
-            double* fimh = &g[(i + 0) * gs[0]];
-            double* fiph = &g[(i + 1) * gs[0]];
+            double *fimh = &g[(i + 0) * gs[0]];
+            double *fiph = &g[(i + 1) * gs[0]];
 
             for (int l = 0; l < num_poly; ++l) {
                 double dwiql = 0.0;
@@ -1269,8 +1255,8 @@ int wgts_cache_from_wgts()
     }
     array_alloc_if_needed(A_WGTS_CACHE);
 
-    double* w = global_array[A_WGTS];
-    double* w0 = global_array[A_WGTS_CACHE];
+    double *w = global_array[A_WGTS];
+    double *w0 = global_array[A_WGTS_CACHE];
     memcpy(w0, w, array_len(A_WGTS) * sizeof(double));
 
     return array_set_current(A_WGTS_CACHE);
@@ -1278,15 +1264,15 @@ int wgts_cache_from_wgts()
 
 int wgts_add_delta()
 {
-    if (array_require_current(A_WGTS) || array_require_current(A_WGTS_CACHE)
-        || array_require_current(A_WGTS_DELTA)) {
+    if (array_require_current(A_WGTS) || array_require_current(A_WGTS_CACHE) ||
+        array_require_current(A_WGTS_DELTA)) {
         return 1;
     }
 
     size_t elem = array_len(A_WGTS);
-    double* w = global_array[A_WGTS];
-    double* w0 = global_array[A_WGTS_CACHE];
-    double* dw = global_array[A_WGTS_DELTA];
+    double *w = global_array[A_WGTS];
+    double *w0 = global_array[A_WGTS_CACHE];
+    double *dw = global_array[A_WGTS_DELTA];
     double rk = rk_parameter;
 
     for (size_t a = 0; a < elem; ++a) {
@@ -1301,10 +1287,7 @@ int wgts_add_delta()
     return 0;
 }
 
-int wgts_from_cons()
-{
-    return project(A_WGTS, A_CONS, 0);
-}
+int wgts_from_cons() { return project(A_WGTS, A_CONS, 0); }
 
 int wgts_apply_bc()
 {
@@ -1315,19 +1298,18 @@ int wgts_apply_bc()
     int num_poly = order;
     int num_fields = NUM_FIELDS;
     int ws[3];
-    double* w = array_ptr_stride(A_WGTS, ws);
+    double *w = array_ptr_stride(A_WGTS, ws);
 
     if (boundary_condition == 0) // outflow
     {
-            for (int q = 0; q < num_fields; ++q) {
+        for (int q = 0; q < num_fields; ++q) {
             for (int l = 0; l < num_poly; ++l) {
                 int a = q * ws[1] + l * ws[2];
                 w[0 * ws[0] + a] = w[1 * ws[0] + a];
                 w[(num_zones - 1) * ws[0] + a] = w[(num_zones - 2) * ws[0] + a];
             }
         }
-    } 
-    else if (boundary_condition == 1) // periodic
+    } else if (boundary_condition == 1) // periodic
     {
         for (int q = 0; q < num_fields; ++q) {
             for (int l = 0; l < num_poly; ++l) {
@@ -1336,20 +1318,20 @@ int wgts_apply_bc()
                 w[(num_zones - 1) * ws[0] + a] = w[1 * ws[0] + a];
             }
         }
-    }
-    else if (boundary_condition == 2) // reflecting
+    } else if (boundary_condition == 2) // reflecting
     {
         for (int q = 0; q < num_fields; ++q) {
             for (int l = 0; l < num_poly; ++l) {
                 int a = q * ws[1] + l * ws[2];
                 if (q == 1) { // x-momentum
                     w[0 * ws[0] + a] = -w[1 * ws[0] + a];
-                    w[(num_zones - 1) * ws[0] + a] = -w[(num_zones - 2) * ws[0] + a];
-                } 
-                else{ // rho and E
+                    w[(num_zones - 1) * ws[0] + a] =
+                        -w[(num_zones - 2) * ws[0] + a];
+                } else { // rho and E
                     w[0 * ws[0] + a] = w[1 * ws[0] + a];
-                    w[(num_zones - 1) * ws[0] + a] = w[(num_zones - 2) * ws[0] + a];
-                }            
+                    w[(num_zones - 1) * ws[0] + a] =
+                        w[(num_zones - 2) * ws[0] + a];
+                }
             }
         }
     }
@@ -1371,13 +1353,13 @@ int flux_from_prim()
     int num_points = order;
     int ps[3];
     int fs[3];
-    double* p = array_ptr_stride(A_PRIM, ps);
-    double* f = array_ptr_stride(A_FLUX, fs);
+    double *p = array_ptr_stride(A_PRIM, ps);
+    double *f = array_ptr_stride(A_FLUX, fs);
 
     for (int i = 0; i < num_zones; ++i) {
         for (int r = 0; r < num_points; ++r) {
-            double* pir = &p[i * ps[0] + r * ps[1]];
-            double* fir = &f[i * ps[0] + r * ps[1]];
+            double *pir = &p[i * ps[0] + r * ps[1]];
+            double *fir = &f[i * ps[0] + r * ps[1]];
             hydro_flux(pir, fir);
         }
     }
@@ -1394,25 +1376,23 @@ int flux_god_compute_fv()
     int num_points = order;
     int num_fields = NUM_FIELDS;
 
-    double* u = global_array[A_CONS];
-    double* p = global_array[A_PRIM];
-    double* f = global_array[A_FLUX_GOD];
+    double *u = global_array[A_CONS];
+    double *p = global_array[A_PRIM];
+    double *f = global_array[A_FLUX_GOD];
 
     for (int r = 0; r < num_zones * num_points - 1; ++r) {
-        double* pl = &p[(r + 0) * num_fields];
-        double* pr = &p[(r + 1) * num_fields];
-        double* ul = &u[(r + 0) * num_fields];
-        double* ur = &u[(r + 1) * num_fields];
-        double* fhat = &f[(r + 1) * num_fields];
-        if (solver_type == 0){
+        double *pl = &p[(r + 0) * num_fields];
+        double *pr = &p[(r + 1) * num_fields];
+        double *ul = &u[(r + 0) * num_fields];
+        double *ur = &u[(r + 1) * num_fields];
+        double *fhat = &f[(r + 1) * num_fields];
+        if (solver_type == 0) {
             fprintf(stderr, "[error] Case for LLF solver not implemented \n");
             exit(1);
             // hydro_riemann_llf(pl, pr, ul, ur, fhat);
-        }
-        else if (solver_type == 1){
+        } else if (solver_type == 1) {
             hydro_riemann_hlle(pl, pr, ul, ur, fhat);
-        }
-        else if (solver_type == 3){
+        } else if (solver_type == 3) {
             hydro_riemann_exact(pl, pr, fhat);
         }
     }
@@ -1428,9 +1408,9 @@ int flux_god_compute_dg()
 
     int us[3];
     int fs[3];
-    double* t = global_array[A_TRZN];
-    double* u = array_ptr_stride(A_CONS_SRF, us);
-    double* f = array_ptr_stride(A_FLUX_GOD, fs);
+    double *t = global_array[A_TRZN];
+    double *u = array_ptr_stride(A_CONS_SRF, us);
+    double *f = array_ptr_stride(A_FLUX_GOD, fs);
     double pl[NUM_FIELDS];
     double pr[NUM_FIELDS];
 
@@ -1438,21 +1418,19 @@ int flux_god_compute_dg()
         if (t[i] > tci_threshold || t[i + 1] > tci_threshold) {
             continue;
         }
-        double* ul = &u[(i + 0) * us[0] + 1 * us[1]];
-        double* ur = &u[(i + 1) * us[0] + 0 * us[1]];
-        double* fhat = &f[(i + 1) * fs[0]];
+        double *ul = &u[(i + 0) * us[0] + 1 * us[1]];
+        double *ur = &u[(i + 1) * us[0] + 0 * us[1]];
+        double *fhat = &f[(i + 1) * fs[0]];
 
         hydro_cons_to_prim(ul, pl);
         hydro_cons_to_prim(ur, pr);
-        if (solver_type == 0){
+        if (solver_type == 0) {
             fprintf(stderr, "[error] Case for LLF solver not implemented \n");
             exit(1);
             // hydro_riemann_llf(pl, pr, ul, ur, fhat);
-        }
-        else if (solver_type == 1){
+        } else if (solver_type == 1) {
             hydro_riemann_hlle(pl, pr, ul, ur, fhat);
-        }
-        else if (solver_type == 3){
+        } else if (solver_type == 3) {
             hydro_riemann_exact(pl, pr, fhat);
         }
     }
@@ -1470,8 +1448,8 @@ int trzn_compute()
     int indicator_field = 0; // density
     int ts[3];
     int ws[3];
-    double* t = array_ptr_stride(A_TRZN, ts);
-    double* w = array_ptr_stride(A_WGTS, ws);
+    double *t = array_ptr_stride(A_TRZN, ts);
+    double *w = array_ptr_stride(A_WGTS, ws);
 
     for (int i = 0; i < num_zones; ++i) {
         double w0 = w[i * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
@@ -1493,16 +1471,17 @@ int trzn_persson_compute()
     int indicator_field = 0; // density
     int ts[3];
     int ws[3];
-    double* t = array_ptr_stride(A_TRZN, ts);
-    double* w = array_ptr_stride(A_WGTS, ws);
+    double *t = array_ptr_stride(A_TRZN, ts);
+    double *w = array_ptr_stride(A_WGTS, ws);
 
     for (int i = 0; i < num_zones; ++i) {
-        double w02 = 0.0; 
-        double wk2 = 0.0; 
+        double w02 = 0.0;
+        double wk2 = 0.0;
         for (int l = 0; l < order; ++l) {
             double wk = w[i * ws[0] + indicator_field * ws[1] + l * ws[2]];
             w02 += wk * wk;
-            if (l >= order - 2) wk2 += wk * wk;
+            if (l >= k - 1)
+                wk2 += wk * wk;
         }
         t[i * ts[0]] = wk2 / w02;
     }
@@ -1522,8 +1501,8 @@ int trzn_minmod_compute()
     int indicator_field = 0; // density
     int ts[3];
     int ws[3];
-    double* t = array_ptr_stride(A_TRZN, ts);
-    double* w = array_ptr_stride(A_WGTS, ws);
+    double *t = array_ptr_stride(A_TRZN, ts);
+    double *w = array_ptr_stride(A_WGTS, ws);
     double v_dir = 1.0;
 
     for (int i = 0; i < num_zones; ++i) {
@@ -1532,46 +1511,49 @@ int trzn_minmod_compute()
         int ir = i + 1;
         if (boundary_condition == 0) // outflow
         {
-            if (i == 0) il = i;
-            if (i == num_zones - 1) ir = i;
-        }
-        else if (boundary_condition == 1) // periodic
+            if (i == 0)
+                il = i;
+            if (i == num_zones - 1)
+                ir = i;
+        } else if (boundary_condition == 1) // periodic
         {
-            if (i == 0) il = num_zones - 1;
-            if (i == num_zones - 1) ir = 0;
-        }
-        else if (boundary_condition == 2) // reflecting
+            if (i == 0)
+                il = num_zones - 1;
+            if (i == num_zones - 1)
+                ir = 0;
+        } else if (boundary_condition == 2) // reflecting
         {
-            if (i == 0) il = i;
-            if (i == num_zones - 1) ir = i;
-            if (indicator_field == 1) v_dir = -1.0;
+            if (i == 0)
+                il = i;
+            if (i == num_zones - 1)
+                ir = i;
+            if (indicator_field == 1)
+                v_dir = -1.0;
         }
-        double w0  = v_dir * w[i  * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w0l = v_dir * w[il * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w0r = v_dir * w[ir * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w1  = v_dir * w[i  * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
-        
+        double w0 = v_dir * w[i * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w0l =
+            v_dir * w[il * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w0r =
+            v_dir * w[ir * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w1 = v_dir * w[i * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
+
         double BETA_TVB = 0.5;
-        //Cockburn & Shu, JCP 141, 199 (1998) eq. 3.7 suggest M~50.0
-        double M_TVB = 50.0; 
+        // Cockburn & Shu, JCP 141, 199 (1998) eq. 3.7 suggest M~50.0
+        double M_TVB = 50.0;
 
         double a = w1 * sqrt(3.0);
         double b = (w0 - w0l) * BETA_TVB;
         double c = (w0r - w0) * BETA_TVB;
-    
-        if (fabs(a) <= M_TVB * dx * dx)
-        {
+
+        if (fabs(a) <= M_TVB * dx * dx) {
             t[i * ts[0]] = 1e-3;
-        }
-        else if ((fabs(a) > fabs(b)) || (fabs(a) > fabs(c)))
-        {
+        } else if ((fabs(a) > fabs(b)) || (fabs(a) > fabs(c))) {
             t[i * ts[0]] = 1e-1;
-        }
-        else
-        {
+        } else {
             t[i * ts[0]] = 1e-3;
         }
-        // printf("%d %e, %e, %e, %e\n", i, fabs(a), fabs(b), fabs(c), t[i + ts[0]]);
+        // printf("%d %e, %e, %e, %e\n", i, fabs(a), fabs(b), fabs(c), t[i +
+        // ts[0]]);
     }
 
     return array_set_current(A_TRZN);
@@ -1587,8 +1569,8 @@ int trzn_fushu17_compute()
     int indicator_field = 0; // density
     int ts[3];
     int ws[3];
-    double* t = array_ptr_stride(A_TRZN, ts);
-    double* w = array_ptr_stride(A_WGTS, ws);
+    double *t = array_ptr_stride(A_TRZN, ts);
+    double *w = array_ptr_stride(A_WGTS, ws);
     double v_dir = 1.0;
 
     for (int i = 0; i < num_zones; ++i) {
@@ -1596,60 +1578,67 @@ int trzn_fushu17_compute()
         int ir = i + 1;
         if (boundary_condition == 0) // outflow
         {
-            if (i == 0) il = i;
-            if (i == num_zones - 1) ir = i;
-        }
-        else if (boundary_condition == 1) // periodic
+            if (i == 0)
+                il = i;
+            if (i == num_zones - 1)
+                ir = i;
+        } else if (boundary_condition == 1) // periodic
         {
-            if (i == 0) il = num_zones - 1;
-            if (i == num_zones - 1) ir = 0;
-        }
-        else if (boundary_condition == 2) // reflecting
+            if (i == 0)
+                il = num_zones - 1;
+            if (i == num_zones - 1)
+                ir = 0;
+        } else if (boundary_condition == 2) // reflecting
         {
-            if (i == 0) il = num_zones - 1;
-            if (i == num_zones - 1) ir = 0;
-            if (indicator_field == 1) v_dir = -1.0;
+            if (i == 0)
+                il = num_zones - 1;
+            if (i == num_zones - 1)
+                ir = 0;
+            if (indicator_field == 1)
+                v_dir = -1.0;
         }
 
-        double w0  = v_dir * w[i  * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w0l = v_dir * w[il * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w0r = v_dir * w[ir * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w1l = v_dir * w[il * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
-        double w1r = v_dir * w[ir * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
+        double w0 = v_dir * w[i * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w0l =
+            v_dir * w[il * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w0r =
+            v_dir * w[ir * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w1l =
+            v_dir * w[il * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
+        double w1r =
+            v_dir * w[ir * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
 
         // Fu & Shu (2017) Eq. 2.3
         double maxpj = max3(fabs(w0), fabs(w0l), fabs(w0r));
 
         double pttl = w0l + 2.0 * sqrt(3.0) * w1l;
-        double pttr = w0r - 2.0 * sqrt(3.0) * w1r; 
+        double pttr = w0r - 2.0 * sqrt(3.0) * w1r;
 
-        if (order > 2)
-        {
+        if (order > 2) {
             double w2l = w[il * ws[0] + indicator_field * ws[1] + 2 * ws[2]];
             double w2r = w[ir * ws[0] + indicator_field * ws[1] + 2 * ws[2]];
 
             pttl += 6.0 * sqrt(5.0) * w2l;
             pttr += 6.0 * sqrt(5.0) * w2r;
         }
-        if (order > 3)
-        {
+        if (order > 3) {
             double w3l = w[il * ws[0] + indicator_field * ws[1] + 3 * ws[2]];
             double w3r = w[ir * ws[0] + indicator_field * ws[1] + 3 * ws[2]];
 
             pttl += 22.0 * sqrt(7.0) * w3l;
-            pttr -= 22.0 * sqrt(7.0) * w3r;            
+            pttr -= 22.0 * sqrt(7.0) * w3r;
         }
-        if (order > 4)
-        {
+        if (order > 4) {
             double w4l = w[il * ws[0] + indicator_field * ws[1] + 4 * ws[2]];
             double w4r = w[ir * ws[0] + indicator_field * ws[1] + 4 * ws[2]];
 
             pttl += 90.0 * sqrt(9.0) * w4l;
-            pttr += 90.0 * sqrt(9.0) * w4r;            
+            pttr += 90.0 * sqrt(9.0) * w4r;
         }
-        if (order > 5)
-        {
-            fprintf(stderr, "[error] Case not implemented in trzn_fushu17_compute() \n");
+        if (order > 5) {
+            fprintf(
+                stderr,
+                "[error] Case not implemented in trzn_fushu17_compute() \n");
             exit(1);
         }
 
@@ -1680,13 +1669,10 @@ int run()
     int iteration = 0;
 
     TRY(grid_init());
-    switch(initial_condition) 
-    {
-        case 1 :
-            TRY(prim_init_ram1());
-            break;
+    switch (initial_condition) {
+    case 1: TRY(prim_init_ram1()); break;
+    case 2: TRY(prim_init_dwave()); break;
     }
-
     TRY(cons_from_prim());
     TRY(wgts_from_cons());
 
@@ -1704,13 +1690,13 @@ int run()
         // 7. add either L dt or M dt to weights, depending on whether it's a
         //    troubled zone
 
-        if (tci_type == 0){
+        if (tci_type == 0) {
             TRY(trzn_compute());
-        } else if (tci_type == 1){
+        } else if (tci_type == 1) {
             TRY(trzn_fushu17_compute());
-        } else if (tci_type == 2){
+        } else if (tci_type == 2) {
             TRY(trzn_minmod_compute());
-        } else if (tci_type == 3){
+        } else if (tci_type == 3) {
             TRY(trzn_persson_compute());
         }
         TRY(timestep_compute());
@@ -1726,7 +1712,6 @@ int run()
             TRY(flux_from_prim());
             TRY(wgts_delta_from_dg());
             TRY(wgts_add_delta());
-            // if (boundary_condition > 0) TRY(wgts_apply_bc());
             TRY(wgts_apply_bc());
             TRY(cons_from_wgts());
             TRY(prim_from_cons());
@@ -1738,8 +1723,8 @@ int run()
         double seconds = timer_end(start) * 1e-9;
         time_phys += time_step;
         iteration += 1;
-        printf("[%04d] t = %.12f dt = %.4e Mzps=%.3f\n", iteration, time_phys, time_step,
-            num_zones / seconds * 1e-6);
+        printf("[%04d] t = %.12f dt = %.4e Mzps=%.3f\n", iteration, time_phys,
+               time_step, num_zones / seconds * 1e-6);
     }
     return 0;
 }
@@ -1753,9 +1738,9 @@ int set_order(int new_order)
     for (int i = 0; i < ARRAY_COUNT; ++i) {
         if (global_array[i] != NULL) {
             fprintf(stderr,
-                "[error] cannot set order when %s is "
-                "allocated\n",
-                array_name(i));
+                    "[error] cannot set order when %s is "
+                    "allocated\n",
+                    array_name(i));
             return 1;
         }
     }
@@ -1767,7 +1752,7 @@ int set_rk_order(int new_rk_order)
 {
     if (new_rk_order < 1 || new_rk_order > 3) {
         fprintf(stderr, "[error] rk_order must be between 1 and 3, got %d\n",
-            new_rk_order);
+                new_rk_order);
         return 1;
     }
     rk_order = new_rk_order;
@@ -1779,9 +1764,9 @@ int set_num_zones(int new_num_zones)
     for (int i = 0; i < ARRAY_COUNT; ++i) {
         if (global_array[i] != NULL) {
             fprintf(stderr,
-                "[error] cannot set num_zones when %s is "
-                "allocated\n",
-                array_name(i));
+                    "[error] cannot set num_zones when %s is "
+                    "allocated\n",
+                    array_name(i));
             return 1;
         }
     }
@@ -1843,9 +1828,9 @@ int set_solver_type(int solver)
     return 0;
 }
 
-int set_terminal(const char* terminal_str)
+int set_terminal(const char *terminal_str)
 {
-    FILE* new_terminal = NULL;
+    FILE *new_terminal = NULL;
 
     if (terminal != stdout) {
         fclose(terminal);
@@ -1860,11 +1845,11 @@ int set_terminal(const char* terminal_str)
     return 0;
 }
 
-int load_commands_from_file(const char* filename)
+int load_commands_from_file(const char *filename)
 {
-    int load_command(const char* cmd);
+    int load_command(const char *cmd);
 
-    FILE* input = NULL;
+    FILE *input = NULL;
     char buffer[MAX_COMMAND_LEN];
 
     if (strcmp(filename, "stdin") == 0) {
@@ -1886,9 +1871,9 @@ int load_commands_from_file(const char* filename)
     return 0;
 }
 
-int load_commands_from_array(int argc, const char** argv)
+int load_commands_from_array(int argc, const char **argv)
 {
-    int load_command(const char* cmd);
+    int load_command(const char *cmd);
 
     for (int n = 1; n < argc; ++n) {
         if (load_command(argv[n])) {
@@ -1898,7 +1883,7 @@ int load_commands_from_array(int argc, const char** argv)
     return 0;
 }
 
-int load_command(const char* cmd)
+int load_command(const char *cmd)
 {
     if (cmd[0] == '#' || strlen(cmd) == 0)
         return 0;
@@ -1918,6 +1903,8 @@ int load_command(const char* cmd)
         return array_clear(A_PRIM);
     if (strcmp(cmd, "prim:init_ram1") == 0)
         return prim_init_ram1();
+    if (strcmp(cmd, "prim:init_dwave") == 0)
+        return prim_init_dwave();
     if (strcmp(cmd, "prim:from_cons") == 0)
         return prim_from_cons();
 
@@ -1993,13 +1980,13 @@ int load_command(const char* cmd)
     if (strncmp(cmd, "gamma=", 6) == 0)
         return set_adiabatic_gamma(atof(cmd + 6));
     if (strncmp(cmd, "solver_type=", 12) == 0)
-        return set_solver_type(atoi(cmd + 12));    
+        return set_solver_type(atoi(cmd + 12));
     if (strncmp(cmd, "bc_type=", 8) == 0)
-        return set_boundary_condition(atoi(cmd + 8));  
+        return set_boundary_condition(atoi(cmd + 8));
     if (strncmp(cmd, "floor=", 6) == 0)
-        return set_floor(atof(cmd + 6));  
+        return set_floor(atof(cmd + 6));
     if (strncmp(cmd, "init=", 5) == 0)
-        return set_initial_condition(atoi(cmd + 5));    
+        return set_initial_condition(atoi(cmd + 5));
     if (strncmp(cmd, "terminal=", 9) == 0)
         return set_terminal(cmd + 9);
     if (strncmp(cmd, "load:", 5) == 0)
@@ -2013,7 +2000,7 @@ int load_command(const char* cmd)
     return 1;
 }
 
-int main(int argc, const char** argv)
+int main(int argc, const char **argv)
 {
     for (int i = 0; i < ARRAY_COUNT; ++i) {
         global_array[i] = NULL;

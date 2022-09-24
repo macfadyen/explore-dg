@@ -9,24 +9,24 @@ from euler_solvers import euler_exact_prim
 
 NUM_FIELDS = 3
 
-# from FuShu CFL = 0.3 0.15 0.1 0.06 0.03 for orders 2,3,4,5,7
-# cfl_parameter = 0.08
-# Order 2: tci = 1e-1 for cfl = 0.2 / 3
-# Order 3: tci = 1e-2 for cfl = 0.08;  FS: 0.1
-# Order 4: tci = 1e-3 for cfl = 0.2 / 7
-# Order 5: tci = 1e-3 for cfl = 0.1 / 9; FS: 0.5
-# Order 7 FS:5.0
-test = 1
-order = 3
+test = 2
+order = 2
 cfl_parameter = 0.4 / (2.0 * (order - 1.0) + 1)
 tci_method = 3
-tci = 0.01
+tci = 0.0
 use_analytic = False
 floor = 0.0
+tmax = 0.1
 
 if test == 1:
     gamma = 5.0 / 3.0
-    tmax = 0.4
+    tmax = 8.0e-3
+    resolution = 100
+    bc = 0
+    use_analytic = False
+elif test == 2:
+    gamma = 5.0 / 3.0
+    tmax = 1e-1
     resolution = 100
     bc = 0
     use_analytic = False
@@ -58,7 +58,7 @@ run_command = (
     + str(tci_method)
     + " bc_type="
     + str(bc)
-    + " solver_type=1 run terminal=grid.dat grid:print terminal=prim.dat prim:print terminal=wgts.dat wgts:print"
+    + " solver_type=1 rk=1 run terminal=grid.dat grid:print terminal=prim.dat prim:print terminal=wgts.dat wgts:print"
 )
 print("run_command = ", run_command)
 os.system(run_command)
@@ -186,8 +186,8 @@ ax1.set_xlim([xmin, xmax])
 f = open("trzn.dat", "r")
 trzn = np.genfromtxt(f)
 f.close()
-nxt = np.shape(trzn)[1]
-trzn = trzn[:, 1 : (nxt - 1)]  # trim ghost zones
+# nxt = np.shape(trzn)[1]
+# trzn = trzn[:, 1 : (nxt - 1)]  # trim ghost zones
 
 # ax2 = fig.add_subplot(211)
 
