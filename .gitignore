@@ -1,4 +1,6 @@
 /movies
 /frames
 /euler
+/euler2d
 *.dat
+*.in
