@@ -1,4 +1,3 @@
-#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,153 +7,17 @@
 
 
 
-// =============================================================================
-// Utility macros
-// =============================================================================
-#define MAX_COMMAND_LEN 1024
-#define MAX_DG_ORDER    11
-#define NUM_FIELDS      5
-#define MIN2(a, b)      ((a) < (b) ? (a) : (b))
-#define MAX2(a, b)      ((a) > (b) ? (a) : (b))
-#define MIN3(a, b, c)   MIN2(a, MIN2(b, c))
-#define MAX3(a, b, c)   MAX2(a, MAX2(b, c))
-#define TRY(n)                                                                 \
-    do {                                                                       \
-        int res = n;                                                           \
-        if (res)                                                               \
-            return res;                                                        \
-    } while (0)
-
-
-
-
-// =============================================================================
-// Runtime configuration
-// =============================================================================
-static FILE *terminal;
-static FILE *binary_output;
-static int dg_order;
-static int num_zones_i;
-static int num_zones_j;
-static int num_zones_k;
-static double domain_x0;
-static double domain_x1;
-static double domain_y0;
-static double domain_y1;
-static double domain_z0;
-static double domain_z1;
-
-
-
-
-// =============================================================================
-// User interaction
-// =============================================================================
+// --------------------------------------------------------
+// Program control
+// --------------------------------------------------------
 int sim_reset();
 int sim_set_terminal(const char *terminal_str);
 int sim_set_binary_output(const char *terminal_str);
 
-// TODO
-int array_clear(int);
-
-int sim_reset()
-{
-    sim_set_terminal("stdout");
-    sim_set_binary_output(NULL);
-
-    dg_order = 3;
-    num_zones_i = 10;
-    num_zones_j = 10;
-    num_zones_k = 1;
-    domain_x0 = 0.0;
-    domain_x1 = 1.0;
-    domain_y0 = 0.0;
-    domain_y1 = 1.0;
-    domain_z0 = 0.0;
-    domain_z1 = 1.0;
-
-    // TODO: 19 -> A_NUM_ARRAYS
-
-    for (int n = 0; n < 19; ++n) {
-        array_clear(n);
-    }
-    return 0;
-}
-
-int sim_set_terminal(const char *terminal_str)
-{
-    FILE *new_terminal = NULL;
-
-    if (terminal != NULL && terminal != stdout) {
-        fclose(terminal);
-    }
-    if (strcmp(terminal_str, "stdout") == 0) {
-        terminal = stdout;
-    } else if ((new_terminal = fopen(terminal_str, "w")) == NULL) {
-        fprintf(stderr, "[error] unable to open terminal file %s\n",
-                terminal_str);
-        return 1;
-    }
-    terminal = new_terminal;
-    return 0;
-}
-
-int sim_set_binary_output(const char *file_str)
-{
-    FILE *new_binary_output = NULL;
-
-    if (binary_output != NULL) {
-        fclose(binary_output);
-    } else if (file_str &&
-               (new_binary_output = fopen(file_str, "wb")) == NULL) {
-        fprintf(stderr, "[error] unable to open binary output file %s\n",
-                file_str);
-        return 1;
-    }
-    binary_output = new_binary_output;
-    return 0;
-}
 
 
 
-// =============================================================================
-// 7 dimensional array data structure and API.
-// =============================================================================
-struct Array {
-    double *ptr;
-    int array_num;
-    int shape[7];
-    int strides[7];
-};
-
-// Array codes
 // --------------------------------------------------------
-#define A_GAUSS_GRID   1
-#define A_LOBATTO_GRID 2
-#define A_WGTS         3
-#define A_WGTS_CACHE   4
-#define A_WGTS_DELTA   5
-#define A_PRIM         6
-#define A_CONS         7
-#define A_CONS_DELTA   8
-#define A_CONS_SRF_I   9
-#define A_CONS_SRF_J   10
-#define A_CONS_SRF_K   11
-#define A_FLUX_I       12
-#define A_FLUX_J       13
-#define A_FLUX_K       14
-#define A_FLUX_GOD_I   15
-#define A_FLUX_GOD_J   16
-#define A_FLUX_GOD_K   17
-#define A_TRZN         18
-#define A_NUM_ARRAYS   19
-
-// All the allocations in use throughout the program.
-//
-// Note: since this is a static array, the pointers are initialized to NULL per
-// C standard.
-static double *global_array[A_NUM_ARRAYS];
-
 // Array API
 // --------------------------------------------------------
 
@@ -199,11 +62,152 @@ int array_write(int array_num);
 int array_bounds_error_exit(int array, int i, int j, int k, int r, int s, int t,
                             int q);
 
+
+
+
+// =============================================================================
+// Utility macros
+// =============================================================================
+#define MAX_COMMAND_LEN 1024
+#define MAX_DG_ORDER    11
+#define NUM_FIELDS      5
+#define MIN2(a, b)      ((a) < (b) ? (a) : (b))
+#define MAX2(a, b)      ((a) > (b) ? (a) : (b))
+#define MIN3(a, b, c)   MIN2(a, MIN2(b, c))
+#define MAX3(a, b, c)   MAX2(a, MAX2(b, c))
+#define TRY(n)                                                                 \
+    do {                                                                       \
+        int res = n;                                                           \
+        if (res)                                                               \
+            return res;                                                        \
+    } while (0)
+
+// Array codes
+// --------------------------------------------------------
+#define A_GAUSS_GRID   1
+#define A_LOBATTO_GRID 2
+#define A_WGTS         3
+#define A_WGTS_CACHE   4
+#define A_WGTS_DELTA   5
+#define A_PRIM         6
+#define A_CONS         7
+#define A_CONS_DELTA   8
+#define A_CONS_SRF_I   9
+#define A_CONS_SRF_J   10
+#define A_CONS_SRF_K   11
+#define A_FLUX_I       12
+#define A_FLUX_J       13
+#define A_FLUX_K       14
+#define A_FLUX_GOD_I   15
+#define A_FLUX_GOD_J   16
+#define A_FLUX_GOD_K   17
+#define A_TRZN         18
+#define A_NUM_ARRAYS   19
+
+// All the allocations in use throughout the program.
+//
+// Note: since this is a static array, the pointers are initialized to NULL per
+// C standard.
+static double *global_array[A_NUM_ARRAYS];
+
+
+
+
+// =============================================================================
+// Runtime configuration
+// =============================================================================
+static FILE *terminal;
+static FILE *binary_output;
+static int dg_order;
+static int num_zones_i;
+static int num_zones_j;
+static int num_zones_k;
+static double domain_x0;
+static double domain_x1;
+static double domain_y0;
+static double domain_y1;
+static double domain_z0;
+static double domain_z1;
+
+
+
+
+// =============================================================================
+// User interaction
+// =============================================================================
+int sim_reset()
+{
+    sim_set_terminal("stdout");
+    sim_set_binary_output(NULL);
+
+    dg_order = 3;
+    num_zones_i = 10;
+    num_zones_j = 10;
+    num_zones_k = 1;
+    domain_x0 = 0.0;
+    domain_x1 = 1.0;
+    domain_y0 = 0.0;
+    domain_y1 = 1.0;
+    domain_z0 = 0.0;
+    domain_z1 = 1.0;
+
+    for (int n = 0; n < A_NUM_ARRAYS; ++n) {
+        array_clear(n);
+    }
+    return 0;
+}
+
+int sim_set_terminal(const char *terminal_str)
+{
+    FILE *new_terminal = NULL;
+
+    if (terminal != NULL && terminal != stdout) {
+        fclose(terminal);
+    }
+    if (strcmp(terminal_str, "stdout") == 0) {
+        terminal = stdout;
+    } else if ((new_terminal = fopen(terminal_str, "w")) == NULL) {
+        fprintf(stderr, "[error] unable to open terminal file %s\n",
+                terminal_str);
+        return 1;
+    }
+    terminal = new_terminal;
+    return 0;
+}
+
+int sim_set_binary_output(const char *file_str)
+{
+    FILE *new_binary_output = NULL;
+
+    if (binary_output != NULL) {
+        fclose(binary_output);
+    } else if (file_str &&
+               (new_binary_output = fopen(file_str, "wb")) == NULL) {
+        fprintf(stderr, "[error] unable to open binary output file %s\n",
+                file_str);
+        return 1;
+    }
+    binary_output = new_binary_output;
+    return 0;
+}
+
+
+
+
+// =============================================================================
+// 7 dimensional array data structure and API.
+// =============================================================================
+struct Array {
+    double *ptr;
+    int array_num;
+    int shape[7];
+    int strides[7];
+};
+
 // Function implementations
 // --------------------------------------------------------
 struct Array array_make(int array_num)
 {
-    assert(global_array[array_num]);
     struct Array a;
     array_shape(array_num, a.shape);
     a.array_num = array_num;
@@ -239,8 +243,8 @@ const char *array_name(int array_num)
     case A_FLUX_GOD_J: return "FLUX_GOD_J";
     case A_FLUX_GOD_K: return "FLUX_GOD_K";
     case A_TRZN: return "TRZN";
+    default: return NULL;
     }
-    assert(0);
 }
 
 void array_shape(int array, int shape[7])
@@ -250,6 +254,7 @@ void array_shape(int array, int shape[7])
     int dg_t = num_zones_k > 1 ? dg_order : 1;
 
     switch (array) {
+
     // grid points
     // ----------------------------------------------------
     case A_GAUSS_GRID:
@@ -310,17 +315,9 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        } else {
-            shape[0] = 0;
-            shape[1] = 0;
-            shape[2] = 0;
-            shape[3] = 0;
-            shape[4] = 0;
-            shape[5] = 0;
-            shape[6] = 0;
+            return;
         }
-        return;
-
+        break;
     case A_CONS_SRF_J:
         if (num_zones_j > 1) {
             shape[0] = num_zones_i;
@@ -330,17 +327,9 @@ void array_shape(int array, int shape[7])
             shape[4] = 2;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        } else {
-            shape[0] = 0;
-            shape[1] = 0;
-            shape[2] = 0;
-            shape[3] = 0;
-            shape[4] = 0;
-            shape[5] = 0;
-            shape[6] = 0;
+            return;
         }
-        return;
-
+        break;
     case A_CONS_SRF_K:
         if (num_zones_k > 1) {
             shape[0] = num_zones_i;
@@ -350,16 +339,9 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = 2;
             shape[6] = NUM_FIELDS;
-        } else {
-            shape[0] = 0;
-            shape[1] = 0;
-            shape[2] = 0;
-            shape[3] = 0;
-            shape[4] = 0;
-            shape[5] = 0;
-            shape[6] = 0;
+            return;
         }
-        return;
+        break;
 
     // fluxes
     // ----------------------------------------------------
@@ -373,17 +355,9 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        } else {
-            shape[0] = 0;
-            shape[1] = 0;
-            shape[2] = 0;
-            shape[3] = 0;
-            shape[4] = 0;
-            shape[5] = 0;
-            shape[6] = 0;
+            return;
         }
-        return;
-
+        break;
     case A_FLUX_GOD_J:
     case A_FLUX_J:
         if (num_zones_j > 1) {
@@ -394,17 +368,9 @@ void array_shape(int array, int shape[7])
             shape[4] = 1;
             shape[5] = dg_t;
             shape[6] = NUM_FIELDS;
-        } else {
-            shape[0] = 0;
-            shape[1] = 0;
-            shape[2] = 0;
-            shape[3] = 0;
-            shape[4] = 0;
-            shape[5] = 0;
-            shape[6] = 0;
+            return;
         }
-        return;
-
+        break;
     case A_FLUX_GOD_K:
     case A_FLUX_K:
         if (num_zones_k > 1) {
@@ -415,18 +381,18 @@ void array_shape(int array, int shape[7])
             shape[4] = dg_s;
             shape[5] = 1;
             shape[6] = NUM_FIELDS;
-        } else {
-            shape[0] = 0;
-            shape[1] = 0;
-            shape[2] = 0;
-            shape[3] = 0;
-            shape[4] = 0;
-            shape[5] = 0;
-            shape[6] = 0;
+            return;
         }
-        return;
+        break;
     }
-    assert(0);
+
+    shape[0] = 0;
+    shape[1] = 0;
+    shape[2] = 0;
+    shape[3] = 0;
+    shape[4] = 0;
+    shape[5] = 0;
+    shape[6] = 0;
 }
 
 size_t array_len(int array_num)
@@ -763,10 +729,12 @@ int grid_lobatto_init()
 // =============================================================================
 int prim_init()
 {
+    if (!global_array[A_GAUSS_GRID] || !global_array[A_PRIM]) {
+        return 1;
+    }
+
     struct Array grid = array_make(A_GAUSS_GRID);
     struct Array prim = array_make(A_PRIM);
-
-    // LEAVING OFF HERE
 
     FOR_EACH_IJKRST (grid) {
         double *x = GETP6(grid, i, j, k, r, s, t);
@@ -801,6 +769,7 @@ int main()
 
     grid_gauss_init();
     grid_lobatto_init();
+    prim_init();
 
     sim_set_binary_output("gauss.bin");
     array_write(A_GAUSS_GRID);
@@ -808,6 +777,8 @@ int main()
     sim_set_binary_output("lobatto.bin");
     array_write(A_LOBATTO_GRID);
 
+    sim_set_binary_output("prim.bin");
+    array_write(A_PRIM);
     sim_reset();
 
     printf("[done]\n");
