@@ -4,6 +4,7 @@ import math
 import matplotlib.pyplot as plt
 import os
 from numpy.polynomial.legendre import leggauss
+
 from euler_solvers import euler_exact_prim
 
 NUM_FIELDS = 3
