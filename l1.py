@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import numpy as np
-import math
 import matplotlib.pyplot as plt
 import os
+import math
 
 order = 3
 cfl_parameter = 0.4 / (2.0 * (order - 1.0) + 1)
