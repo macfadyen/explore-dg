@@ -33,7 +33,7 @@ static double cfl_parameter = 0.1;
 static double adiabatic_gamma = 5.0 / 3.0;
 static double time_final = 0.1;
 int solver_type = 1; // 0: "LLF" 1: "HLLE" 2: "HLLC" or 3: "Exact"
-int tci_type = 0; // 0: "Zrake" 1: "FuShu" 2: "minmod"
+int tci_type = 0; // 0: "Zrake" 1: "FuShu" 2: "minmod" 3: Persson
 int boundary_condition = 0; // 0: "outflow" or 1: "periodic" or 2:"reflecting"
 double floor_rho_p = 0.0; // floor on both rho and p
 int initial_condition = 2; // 0: "FS32 or easy sod"
@@ -1754,6 +1754,34 @@ int trzn_compute()
     return array_set_current(A_TRZN);
 }
 
+int trzn_persson_compute()
+{
+    if (array_require_current(A_WGTS)) {
+        return 1;
+    }
+    array_alloc_if_needed(A_TRZN);
+
+    int k = order - 1;
+    int indicator_field = 0; // density
+    int ts[3];
+    int ws[3];
+    double* t = array_ptr_stride(A_TRZN, ts);
+    double* w = array_ptr_stride(A_WGTS, ws);
+
+    for (int i = 0; i < num_zones; ++i) {
+        double w02 = 0.0; 
+        double wk2 = 0.0; 
+        for (int l = 0; l < order; ++l) {
+            double wk = w[i * ws[0] + indicator_field * ws[1] + l * ws[2]];
+            w02 += wk * wk;
+            if (l >= order - 2) wk2 += wk * wk;
+        }
+        t[i * ts[0]] = wk2 / w02;
+    }
+
+    return array_set_current(A_TRZN);
+}
+
 int trzn_minmod_compute()
 {
     if (array_require_current(A_WGTS)) {
@@ -1977,6 +2005,8 @@ int run()
             TRY(trzn_fushu17_compute());
         } else if (tci_type == 2){
             TRY(trzn_minmod_compute());
+        } else if (tci_type == 3){
+            TRY(trzn_persson_compute());
         }
         TRY(timestep_compute());
         TRY(wgts_cache_from_wgts());
