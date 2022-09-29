@@ -1825,22 +1825,24 @@ int trzn_fushu17_compute()
         } else if (boundary_condition == 2) // reflecting
         {
             if (i == 0)
-                il = num_zones - 1;
+                il = i;
             if (i == num_zones - 1)
-                ir = 0;
-            if (indicator_field == 1)
-                v_dir = -1.0;
+                ir = i;
         }
 
-        double w0 = v_dir * w[i * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w0l =
-            v_dir * w[il * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w0r =
-            v_dir * w[ir * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
-        double w1l =
-            v_dir * w[il * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
-        double w1r =
-            v_dir * w[ir * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
+        double w0 = w[i * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w0l = w[il * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w0r = w[ir * ws[0] + indicator_field * ws[1] + 0 * ws[2]];
+        double w1l = w[il * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
+        double w1r = w[ir * ws[0] + indicator_field * ws[1] + 1 * ws[2]];
+
+        if (indicator_field == 1 && i == 0) {
+            w0l *= -1.0;
+        }
+
+        if (indicator_field == 1 && i == num_zones - 1) {
+            w0r *= -1.0;
+        }
 
         // Fu & Shu (2017) Eq. 2.3
         double maxpj = max3(fabs(w0), fabs(w0l), fabs(w0r));
