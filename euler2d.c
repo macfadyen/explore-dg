@@ -252,6 +252,9 @@ void array_shape(int array, int shape[7])
     int dg_r = num_zones_i > 1 ? dg_order : 1;
     int dg_s = num_zones_j > 1 ? dg_order : 1;
     int dg_t = num_zones_k > 1 ? dg_order : 1;
+    int dg_l = num_zones_i > 1 ? dg_order : 1;
+    int dg_m = num_zones_j > 1 ? dg_order : 1;
+    int dg_n = num_zones_k > 1 ? dg_order : 1;
 
     switch (array) {
 
@@ -285,9 +288,9 @@ void array_shape(int array, int shape[7])
         shape[1] = num_zones_j;
         shape[2] = num_zones_k;
         shape[3] = NUM_FIELDS;
-        shape[3] = dg_r;
-        shape[4] = dg_s;
-        shape[5] = dg_t;
+        shape[4] = dg_l;
+        shape[5] = dg_m;
+        shape[6] = dg_n;
         return;
 
     // hydrodynamics fields
